@@ -79,6 +79,27 @@ static int init_spdk_daemon(){
   return ret;
 }
 
+static int open_file_table_test(){
+  // open file table test
+  int opfd = shm_open("optab", O_CREAT | O_RDWR, 0777);
+  if(opfd < 0)
+    return opfd;
+
+  ftruncate(opfd, VSFS_BLOCK_SIZE);
+
+  op_ftable_t* data = 
+    (op_ftable_t*)mmap(NULL, VSFS_BLOCK_SIZE, PROT_READ, MAP_SHARED, opfd, 0);
+
+
+  munmap(opfd, VSFS_BLOCK_SIZE);
+
+  close(opfd);
+
+  shm_unlink("optab");
+
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
   if (argc != 2) {
     printf("bad arg num\n");
@@ -108,7 +129,8 @@ int main(int argc, char *argv[]) {
     goto unmap;
   }
 
-
+  if(open_file_table_test() < 0)
+    handle_error("open_file_table_test():");
 
   return 0;
 unmap:

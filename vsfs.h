@@ -83,6 +83,13 @@ struct vsfs_dir_block {
   struct vsfs_file_entry files[VSFS_FILES_PER_BLOCK];
 };
 
+typedef struct op_file_table_entry {
+  uint32_t offset;
+  uint16_t inode_nr;
+  uint8_t ptr_counter;
+  uint8_t lock;
+} op_ftable_t;
+
 /* superblock functions */
 // int simplefs_fill_super(struct super_block *sb, void *data, int silent);
 
