@@ -77,5 +77,6 @@ int main(int argc, char *argv[]) {
             root_dir_info->files[i].inode
             );
   }
+  printf("nr_inode/64=%ld\n",VSFS_NR_INODES/64);
   return 0;
 }

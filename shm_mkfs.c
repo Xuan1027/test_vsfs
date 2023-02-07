@@ -48,14 +48,16 @@ static struct superblock *write_superblock(int fd, struct stat *fstats) {
   sb->info =
       (struct vsfs_sb_info){.magic = htole32(VSFS_MAGIC),
                             .nr_blocks = htole32(nr_blocks),
+                            .ofs_ibitmap = htole32(ofs_ibitmap),
+                            .ofs_iregion = htole32(ofs_iregion),
+                            .ofs_dbitmap = htole32(ofs_dbitmap),
+                            .ofs_dregion = htole32(ofs_dregion),
                             .nr_ibitmap_blocks = htole32(nr_ibitmap_blocks),
                             .nr_iregion_blocks = htole32(nr_iregion_blocks),
                             .nr_dbitmap_blocks = htole32(nr_dbitmap_blocks),
                             .nr_dregion_blocks = htole32(nr_dregion_blocks),
-                            .ofs_ibitmap = htole32(ofs_ibitmap),
-                            .ofs_iregion = htole32(ofs_iregion),
-                            .ofs_dbitmap = htole32(ofs_dbitmap),
-                            .ofs_dregion = htole32(ofs_dregion)};
+                            .nr_free_inodes = VSFS_NR_INODES - 1,
+                            .nr_free_dblock = nr_dregion_blocks - 1};
   int ret = write(fd, sb, sizeof(struct superblock));
   if (ret != sizeof(struct superblock)) {
     free(sb);

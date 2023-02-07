@@ -41,15 +41,19 @@ struct vsfs_sb_info {
 
   uint32_t nr_blocks; /* Total number of blocks */
 
+  uint32_t ofs_ibitmap;
+  uint32_t ofs_iregion;
+  uint32_t ofs_dbitmap;
+  uint32_t ofs_dregion;
+
   uint32_t nr_ibitmap_blocks; /* Number of inode bitmap blocks (fixed 1)*/
   uint32_t nr_iregion_blocks; /* Number of inode region blocks (fixed 2048) */
   uint32_t nr_dbitmap_blocks; /* Number of data  bitmap blocks */
   uint32_t nr_dregion_blocks; /* Number of data  region blocks */
 
-  uint32_t ofs_ibitmap;
-  uint32_t ofs_iregion;
-  uint32_t ofs_dbitmap;
-  uint32_t ofs_dregion;
+  uint32_t nr_free_inodes;
+  uint32_t nr_free_dblock;
+
 };
 
 struct vsfs_level {
