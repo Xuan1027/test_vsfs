@@ -26,18 +26,7 @@ struct vsfs_cached_data {
 static inline int _ffs(uint64_t x) {
   if (x == 0)
     return -1;
-
-  uint32_t n = 0;
-  uint32_t bits = 64;
-  uint64_t mask = 0xffffffffffffffff;
-  while (bits >>= 1) {
-    mask >>= bits;
-    if (!(x & mask)) {
-      n += bits;
-      x >>= bits;
-    }
-  }
-  return n;
+  return (x&0xffffffff)?__builtin_ffs(x)-1:__builtin_ffs(x>>32)+31;
 }
 
 /*
