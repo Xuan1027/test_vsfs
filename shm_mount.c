@@ -95,8 +95,6 @@ static int open_file_table_test(){
 
   close(opfd);
 
-  shm_unlink("optab");
-
   return 0;
 }
 
