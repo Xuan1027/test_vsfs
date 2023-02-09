@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "vsfs.h"
+#include "VSFS/vsfs.h"
 
 #define handle_error(msg)                                                      \
   do {                                                                         \
