@@ -1,10 +1,7 @@
 #ifndef VSFSIO_H
 #define VSFSIO_H
 
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-
+#include "vsfs_stdinc.h"
 #include "vsfs.h"
 
 static int vsfs_creat();

@@ -1,14 +1,4 @@
-#include <fcntl.h>
-#include <linux/fs.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
+#include "inc/vsfs_stdinc.h"
 #include "inc/vsfs.h"
 
 #define handle_error(msg)                                                      \

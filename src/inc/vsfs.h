@@ -1,9 +1,6 @@
 #ifndef VSFS_H
 #define VSFS_H
 
-#include <stdint.h>
-#include <time.h>
-
 // Undecided
 #define VSFS_MAGIC 0xF0000000
 

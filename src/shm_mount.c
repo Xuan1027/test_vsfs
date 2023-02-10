@@ -1,14 +1,4 @@
-#include <fcntl.h>
-#include <linux/fs.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
+#include "inc/vsfs_stdinc.h"
 #include "inc/vsfs.h"
 
 #define handle_error(msg)                                                      \
@@ -43,6 +33,8 @@ static int make_shm_cached(char *name, char *ptr) {
     handle_error("shm_open():");
     goto free_str;
   }
+
+  
 
   // sizeof(inode bitmap + data bitmap)
   uint32_t bitmap_total_size =
@@ -91,7 +83,7 @@ static int open_file_table_test(){
     (op_ftable_t*)mmap(NULL, VSFS_BLOCK_SIZE, PROT_READ, MAP_SHARED, opfd, 0);
 
 
-  munmap(opfd, VSFS_BLOCK_SIZE);
+  munmap(data, VSFS_BLOCK_SIZE);
 
   close(opfd);
 

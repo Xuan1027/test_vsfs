@@ -2,6 +2,7 @@
 #define VSFS_BITMAP_H
 
 #include "vsfs.h"
+#include "vsfs_stdinc.h"
 
 /*
  * vsfs cache in memory struct
