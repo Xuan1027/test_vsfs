@@ -1,6 +1,8 @@
 #ifndef VSFS_H
 #define VSFS_H
 
+#include "vsfs_stdinc.h"
+
 // Undecided
 #define VSFS_MAGIC 0xF0000000
 

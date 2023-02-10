@@ -4,7 +4,7 @@ VSFS_ROOT := $(CURDIR)
 CFLAGS = -I$(VSFS_ROOT)/src
 SYS_LIBS = -lrt
 
-exec = shm_mkfs shm_mount testfs
+exec = shm_mkfs shm_mount shm_unlink testfs testinode
 
 des := $(exec:%=$(VSFS_ROOT)/compile/%)
 
