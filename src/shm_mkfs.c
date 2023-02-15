@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "VSFS/vsfs.h"
+#include "inc/vsfs.h"
 
 #define handle_error(msg)                                                      \
   do {                                                                         \
@@ -120,9 +120,11 @@ static int write_inode_bitmap(int fd, struct superblock *sb) {
 
   uint64_t *ibitmap = (uint64_t *)block;
 
+  /* Set all bits to 1 */
+  memset(ibitmap, 0xff, VSFS_BLOCK_SIZE);
   /* First inode */
-  ibitmap[0] = htole64(0xfe);
-
+  ibitmap[0] = htole64(0xfffffffffffffffe);
+  
   int ret = write(fd, ibitmap, VSFS_BLOCK_SIZE);
   if (ret != VSFS_BLOCK_SIZE) {
     free(block);
@@ -139,11 +141,19 @@ static int write_data_bitmap(int fd, struct superblock *sb) {
 
   uint64_t *dbitmap = (uint64_t *)block;
 
-  /* Set all bits to 0 */
+  /* Set all bits to 1 */
   memset(dbitmap, 0xff, VSFS_BLOCK_SIZE);
-
-  uint32_t i, ret = 0;
-  for (i = 0; i < le32toh(sb->info.nr_dbitmap_blocks); i++) {
+  /* First data block */
+  uint32_t ret;
+  dbitmap[0] = htole64(0xfffffffffffffffe);
+  ret = write(fd, dbitmap, VSFS_BLOCK_SIZE);
+  if (ret != VSFS_BLOCK_SIZE) {
+    ret = -1;
+    goto end;
+  }
+  dbitmap[0] = htole64(0xffffffffffffffff);
+  uint32_t i;
+  for (i = 1; i < le32toh(sb->info.nr_dbitmap_blocks); i++) {
     ret = write(fd, dbitmap, VSFS_BLOCK_SIZE);
     if (ret != VSFS_BLOCK_SIZE) {
       ret = -1;

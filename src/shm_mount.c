@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "VSFS/vsfs.h"
+#include "inc/vsfs.h"
 
 #define handle_error(msg)                                                      \
   do {                                                                         \
@@ -56,16 +56,17 @@ static int make_shm_cached(char *name, char *ptr) {
     handle_error("mmap():");
     goto free_str;
   }
+
   struct vsfs_sb_info *cached_sb = (struct vsfs_sb_info *)cptr;
-  char *cached_ibitmap = cptr + sizeof(struct vsfs_sb_info *);
-  char *cached_dbitmap = cptr + sizeof(struct vsfs_sb_info *) +
+  char *cached_ibitmap = cptr + sizeof(struct vsfs_sb_info);
+  char *cached_dbitmap = cptr + sizeof(struct vsfs_sb_info) +
                          (sb->info.nr_ibitmap_blocks * VSFS_BLOCK_SIZE);
 
   memcpy(cached_sb, sb, sizeof(struct vsfs_sb_info));
   memcpy(cached_ibitmap, ibitmap,
-         sizeof(sb->info.nr_ibitmap_blocks * VSFS_BLOCK_SIZE));
+         sb->info.nr_ibitmap_blocks * VSFS_BLOCK_SIZE);
   memcpy(cached_dbitmap, dbitmap,
-         sizeof(sb->info.nr_dbitmap_blocks * VSFS_BLOCK_SIZE));
+         sb->info.nr_dbitmap_blocks * VSFS_BLOCK_SIZE);
   munmap(cptr, sizeof(struct vsfs_sb_info) + bitmap_total_size);
 free_str:
   free(cached);
@@ -90,8 +91,7 @@ static int open_file_table_test(){
   op_ftable_t* data = 
     (op_ftable_t*)mmap(NULL, VSFS_BLOCK_SIZE, PROT_READ, MAP_SHARED, opfd, 0);
 
-
-  munmap(opfd, VSFS_BLOCK_SIZE);
+  munmap(data, VSFS_BLOCK_SIZE);
 
   close(opfd);
 

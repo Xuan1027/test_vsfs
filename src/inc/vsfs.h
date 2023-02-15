@@ -98,6 +98,6 @@ typedef struct op_file_table_entry {
 /* inode functions */
 // int simplefs_init_inode_cache(void);
 // void simplefs_destroy_inode_cache(void);
-// struct inode *simplefs_iget(struct super_block *sb, unsigned long ino);
+struct inode *simplefs_iget(struct super_block *sb, unsigned long ino);
 
 #endif /*VSFS_H*/
