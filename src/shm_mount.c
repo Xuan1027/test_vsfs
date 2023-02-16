@@ -1,5 +1,5 @@
-#include "inc/vsfs_stdinc.h"
-#include "inc/vsfs.h"
+#include "vsfs_stdinc.h"
+#include "vsfs.h"
 
 #define handle_error(msg)                                                      \
   do {                                                                         \
@@ -41,23 +41,28 @@ static int make_shm_cached(char *name, char *ptr) {
       (sb->info.nr_ibitmap_blocks + sb->info.nr_dbitmap_blocks) *
       VSFS_BLOCK_SIZE;
 
-  ftruncate(cfd, sizeof(struct vsfs_sb_info) + bitmap_total_size);
+  ret = ftruncate(cfd, sizeof(struct vsfs_sb_info) + bitmap_total_size);
+  if (ret == -1) {
+    handle_error("ftruncate():");
+    return ret;
+  }
   char *cptr = mmap(NULL, sizeof(struct vsfs_sb_info) + bitmap_total_size,
                     PROT_READ | PROT_WRITE, MAP_SHARED, cfd, 0);
   if (cptr == MAP_FAILED) {
     handle_error("mmap():");
     goto free_str;
   }
+
   struct vsfs_sb_info *cached_sb = (struct vsfs_sb_info *)cptr;
-  char *cached_ibitmap = cptr + sizeof(struct vsfs_sb_info *);
-  char *cached_dbitmap = cptr + sizeof(struct vsfs_sb_info *) +
+  char *cached_ibitmap = cptr + sizeof(struct vsfs_sb_info);
+  char *cached_dbitmap = cptr + sizeof(struct vsfs_sb_info) +
                          (sb->info.nr_ibitmap_blocks * VSFS_BLOCK_SIZE);
 
   memcpy(cached_sb, sb, sizeof(struct vsfs_sb_info));
   memcpy(cached_ibitmap, ibitmap,
-         sizeof(sb->info.nr_ibitmap_blocks * VSFS_BLOCK_SIZE));
+         sb->info.nr_ibitmap_blocks * VSFS_BLOCK_SIZE);
   memcpy(cached_dbitmap, dbitmap,
-         sizeof(sb->info.nr_dbitmap_blocks * VSFS_BLOCK_SIZE));
+         sb->info.nr_dbitmap_blocks * VSFS_BLOCK_SIZE);
   munmap(cptr, sizeof(struct vsfs_sb_info) + bitmap_total_size);
 free_str:
   free(cached);
@@ -73,15 +78,19 @@ static int init_spdk_daemon(){
 
 static int open_file_table_test(){
   // open file table test
-  int opfd = shm_open("optab", O_CREAT | O_RDWR, 0777);
+  int opfd = shm_open("optab", O_CREAT | O_RDWR, 0666);
   if(opfd < 0)
     return opfd;
 
-  ftruncate(opfd, VSFS_BLOCK_SIZE);
+  int ret;
+  ret = ftruncate(opfd, VSFS_BLOCK_SIZE);
+  if (ret == -1) {
+    handle_error("ftruncate():");
+    return ret;
+  }
 
   op_ftable_t* data = 
     (op_ftable_t*)mmap(NULL, VSFS_BLOCK_SIZE, PROT_READ, MAP_SHARED, opfd, 0);
-
 
   munmap(data, VSFS_BLOCK_SIZE);
 
@@ -121,6 +130,12 @@ int main(int argc, char *argv[]) {
 
   if(open_file_table_test() < 0)
     handle_error("open_file_table_test():");
+
+  ret = init_spdk_daemon();
+  if (ret == -1) {
+    handle_error("init_spdk_daemon():");
+    return ret;
+  }
 
   return 0;
 unmap:

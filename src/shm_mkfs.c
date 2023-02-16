@@ -1,5 +1,5 @@
-#include "inc/vsfs_stdinc.h"
-#include "inc/vsfs.h"
+#include "vsfs_stdinc.h"
+#include "vsfs.h"
 
 #define handle_error(msg)                                                      \
   do {                                                                         \
@@ -72,7 +72,7 @@ static int write_inode_region(int fd, struct superblock *sb) {
     return -1;
   memset(block, 0, VSFS_BLOCK_SIZE);
   struct vsfs_inode *inode = (struct vsfs_inode *)block;
-  uint32_t first_data_block = le32toh(sb->info.ofs_dregion);
+  // uint32_t first_data_block = le32toh(sb->info.ofs_dregion);
   inode->mode = htole32(0x0f); // drwx
   inode->blocks = htole32(1);
   inode->atime = inode->ctime = inode->mtime = htole32(0);
@@ -110,9 +110,11 @@ static int write_inode_bitmap(int fd, struct superblock *sb) {
 
   uint64_t *ibitmap = (uint64_t *)block;
 
+  /* Set all bits to 1 */
+  memset(ibitmap, 0xff, VSFS_BLOCK_SIZE);
   /* First inode */
-  ibitmap[0] = htole64(0xfe);
-
+  ibitmap[0] = htole64(0xfffffffffffffffe);
+  
   int ret = write(fd, ibitmap, VSFS_BLOCK_SIZE);
   if (ret != VSFS_BLOCK_SIZE) {
     free(block);
@@ -129,11 +131,19 @@ static int write_data_bitmap(int fd, struct superblock *sb) {
 
   uint64_t *dbitmap = (uint64_t *)block;
 
-  /* Set all bits to 0 */
+  /* Set all bits to 1 */
   memset(dbitmap, 0xff, VSFS_BLOCK_SIZE);
-
-  uint32_t i, ret = 0;
-  for (i = 0; i < le32toh(sb->info.nr_dbitmap_blocks); i++) {
+  /* First data block */
+  uint32_t ret;
+  dbitmap[0] = htole64(0xfffffffffffffffe);
+  ret = write(fd, dbitmap, VSFS_BLOCK_SIZE);
+  if (ret != VSFS_BLOCK_SIZE) {
+    ret = -1;
+    goto end;
+  }
+  dbitmap[0] = htole64(0xffffffffffffffff);
+  uint32_t i;
+  for (i = 1; i < le32toh(sb->info.nr_dbitmap_blocks); i++) {
     ret = write(fd, dbitmap, VSFS_BLOCK_SIZE);
     if (ret != VSFS_BLOCK_SIZE) {
       ret = -1;
@@ -188,7 +198,11 @@ int main(int argc, char **argv) {
     return ret;
   }
 
-  ftruncate(fd, 0x100000 << 10);
+  ret = ftruncate(fd, 0x100000 << 10);
+  if (ret == -1) {
+    handle_error("ftruncate():");
+    return ret;
+  }
   struct stat fstats;
   ret = fstat(fd, &fstats);
   if (ret) {

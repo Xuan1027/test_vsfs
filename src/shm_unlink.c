@@ -1,4 +1,4 @@
-#include "inc/vsfs_stdinc.h"
+#include "vsfs_stdinc.h"
 
 int main(int argc, char **argv)
 {

@@ -1,6 +1,6 @@
-#include "inc/vsfs_stdinc.h"
-#include "inc/vsfs.h"
-#include "inc/vsfs_bitmap.h"
+#include "vsfs.h"
+#include "vsfs_stdinc.h"
+#include "vsfs_bitmap.h"
 
 int main(int argc, char **argv)
 {
@@ -9,6 +9,8 @@ int main(int argc, char **argv)
 
     struct stat fstats;
     int re = fstat(fd, &fstats);
+    if(re == -1)
+        return -1;
     struct vsfs_cached_data *ptr = mmap(NULL, fstats.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
 

@@ -1,5 +1,5 @@
-#include "inc/vsfs_stdinc.h"
-#include "inc/vsfs.h"
+#include "vsfs_stdinc.h"
+#include "vsfs.h"
 
 #define handle_error(msg)                                                      \
   do {                                                                         \

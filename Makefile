@@ -1,30 +1,44 @@
 Q ?= @
+CC := gcc
+
 VSFS_ROOT := $(CURDIR)
+VSFS_SRCDIR := $(VSFS_ROOT)/src
+VSFS_OBJDIR := $(VSFS_ROOT)/obj
+VSFS_INCDIR := $(VSFS_ROOT)/src/inc
+VSFS_EXEDIR := $(VSFS_ROOT)/compile
 
-CFLAGS = -I$(VSFS_ROOT)/src
-SYS_LIBS = -lrt
+CFLAGS += -Wall -O2 -march=native -finline-functions
+LDFLAGS = -I$(VSFS_INCDIR)
+SYS_LIBS = -lrt -lpthread
 
-exec = shm_mkfs shm_mount shm_unlink testfs testinode
+EXEC = shm_mkfs shm_mount shm_unlink testfs testinode
+EXT = .c
 
-des := $(exec:%=$(VSFS_ROOT)/compile/%)
+SRCS = $(wildcard $(VSFS_SRCDIR)/*$(EXT))
+OBJS = $(SRC:$(VSFS_SRCDIR)/%$(EXT)=$(VSFS_OBJDIR)/%.o)
+DEPS = $(OBJ:$(VSFS_OBJDIR)/%.o=%.d)
 
+.PHONY: all clean setup
 
-.PHONY: all clean
-
-all : $(des)
-	@:
+all : $(EXEC)
 
 clean :
-	$(Q)rm -f compile/*
-
-%.o : $(VSFS_ROOT)/src/%.c
-	$(Q)echo "  CC $@";\
-	gcc -o $@ -c $< $(CFLAGS)
-
-$(VSFS_ROOT)/compile/% : %.o
-	$(Q)echo "  LINK $(notdir $@)";\
-	gcc -o $@ $< $(SYS_LIBS)
+	$(Q)$(VSFS_EXEDIR)/shm_unlink test;\
 	$(CLEAN_C)
 
+setup :
+	$(VSFS_EXEDIR)/shm_mkfs test
+	$(VSFS_EXEDIR)/shm_mount test
+
+%.o : $(VSFS_SRCDIR)/%.c $(VSFS_INCDIR)/*.h
+	$(Q)echo "  CC $@";\
+	$(CC) $(LDFLAGS) -c $< $(CFLAGS) -o $(VSFS_OBJDIR)/$@
+
+% : %.o
+	$(Q)echo "  LINK $@";\
+	$(CC) $(VSFS_OBJDIR)/$< $(SYS_LIBS) -o $(VSFS_EXEDIR)/$@
+
 CLEAN_C=\
-	$(Q)rm -f *.o
+	rm -f $(VSFS_OBJDIR)/*.o;\
+	rm -f $(VSFS_EXEDIR)/*
+

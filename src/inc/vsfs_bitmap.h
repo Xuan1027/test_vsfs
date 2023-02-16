@@ -37,7 +37,7 @@ static inline int _ffs(uint64_t x) {
  */
 static inline uint32_t get_first_free_bit(unsigned long *freemap,
                                           unsigned long size) {
-  uint32_t bit, prev = 0, count = 0;
+  uint32_t count = 0;
   while (++count <= size) {
     if (freemap[count]) {
       int n = _ffs(freemap[count]);
