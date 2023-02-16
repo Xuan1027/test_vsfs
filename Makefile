@@ -1,8 +1,8 @@
 CC := gcc
-CFLAGS += -Wall -lpthread -O2 -march=native -finline-functions
+CFLAGS += -O2 -Wall -lpthread -lrt -march=native -finline-functions
 LDFLAGS = 
 
-EXEC = shm_mkfs shm_mount testfs
+EXEC = shm_mkfs shm_mount testfs testcached
 EXT = .c
 SRCDIR = src
 OBJDIR = obj
@@ -21,3 +21,7 @@ shm_mount: src/shm_mount.c
 
 testfs: src/testfs.c
 	$(CC) $(CFLAGS) $< -o compile/$@
+
+testcached: src/testcached.c
+	$(CC) $(CFLAGS) $< -o compile/$@
+

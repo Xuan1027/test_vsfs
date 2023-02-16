@@ -82,7 +82,6 @@ static int write_inode_region(int fd, struct superblock *sb) {
     return -1;
   memset(block, 0, VSFS_BLOCK_SIZE);
   struct vsfs_inode *inode = (struct vsfs_inode *)block;
-  uint32_t first_data_block = le32toh(sb->info.ofs_dregion);
   inode->mode = htole32(0x0f); // drwx
   inode->blocks = htole32(1);
   inode->atime = inode->ctime = inode->mtime = htole32(0);
@@ -208,12 +207,15 @@ int main(int argc, char **argv) {
     return ret;
   }
 
-  ftruncate(fd, 0x100000 << 10);
+  if(ftruncate(fd, 0x100000 << 10)==-1){
+    handle_error("ftruncate():");
+    goto fclose;
+  }
   struct stat fstats;
   ret = fstat(fd, &fstats);
   if (ret) {
     handle_error("fstat():");
-    return ret;
+    goto fclose;
   }
 
   printf("fstats->st_size=0x%lx\n", fstats.st_size);

@@ -49,7 +49,10 @@ static int make_shm_cached(char *name, char *ptr) {
       (sb->info.nr_ibitmap_blocks + sb->info.nr_dbitmap_blocks) *
       VSFS_BLOCK_SIZE;
 
-  ftruncate(cfd, sizeof(struct vsfs_sb_info) + bitmap_total_size);
+  if(ftruncate(cfd, sizeof(struct vsfs_sb_info) + bitmap_total_size)==-1){
+    handle_error("ftruncate():");
+    goto free_str;
+  }
   char *cptr = mmap(NULL, sizeof(struct vsfs_sb_info) + bitmap_total_size,
                     PROT_READ | PROT_WRITE, MAP_SHARED, cfd, 0);
   if (cptr == MAP_FAILED) {
@@ -86,7 +89,9 @@ static int open_file_table_test(){
   if(opfd < 0)
     return opfd;
 
-  ftruncate(opfd, VSFS_BLOCK_SIZE);
+  if(ftruncate(opfd, VSFS_BLOCK_SIZE)==-1){
+    return 1;
+  }
 
   op_ftable_t* data = 
     (op_ftable_t*)mmap(NULL, VSFS_BLOCK_SIZE, PROT_READ, MAP_SHARED, opfd, 0);
@@ -110,7 +115,7 @@ int main(int argc, char *argv[]) {
   int ret = fstat(fd, &fstats);
   if (ret) {
     handle_error("fstat():");
-    return ret;
+    goto fclose;
   }
 
   char *ptr;
@@ -133,6 +138,7 @@ int main(int argc, char *argv[]) {
   return 0;
 unmap:
   munmap(ptr, fstats.st_size);
+fclose:
   close(fd);
   return ret;
 }
