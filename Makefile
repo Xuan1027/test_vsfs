@@ -20,6 +20,7 @@ OBJS = $(SRC:$(VSFS_SRCDIR)/%$(EXT)=$(VSFS_OBJDIR)/%.o)
 DEPS = $(OBJ:$(VSFS_OBJDIR)/%.o=%.d)
 
 .PHONY: all clean setup
+.PRECIOUS: $(VSFS_OBJDIR)/%.o
 
 all : $(EXEC)
 
