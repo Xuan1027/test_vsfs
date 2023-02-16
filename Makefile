@@ -11,7 +11,8 @@ CFLAGS += -Wall -O2 -march=native -finline-functions
 LDFLAGS = -I$(VSFS_INCDIR)
 SYS_LIBS = -lrt -lpthread
 
-EXEC = shm_mkfs shm_mount shm_unlink testfs testinode
+tar = shm_mkfs shm_mount shm_unlink testfs testinode
+EXEC = $(tar:%=$(VSFS_EXEDIR)/%)
 EXT = .c
 
 SRCS = $(wildcard $(VSFS_SRCDIR)/*$(EXT))
@@ -30,13 +31,13 @@ setup :
 	$(VSFS_EXEDIR)/shm_mkfs test
 	$(VSFS_EXEDIR)/shm_mount test
 
-%.o : $(VSFS_SRCDIR)/%.c $(VSFS_INCDIR)/*.h
-	$(Q)echo "  CC $@";\
-	$(CC) $(LDFLAGS) -c $< $(CFLAGS) -o $(VSFS_OBJDIR)/$@
+$(VSFS_OBJDIR)/%.o : $(VSFS_SRCDIR)/%.c $(VSFS_INCDIR)/*.h
+	$(Q)echo "  CC $(notdir $@)";\
+	$(CC) $(LDFLAGS) -c $< $(CFLAGS) -o $@
 
-% : %.o
-	$(Q)echo "  LINK $@";\
-	$(CC) $(VSFS_OBJDIR)/$< $(SYS_LIBS) -o $(VSFS_EXEDIR)/$@
+$(VSFS_EXEDIR)/% : $(VSFS_OBJDIR)/%.o
+	$(Q)echo "  LINK $(notdir $@)";\
+	$(CC) $< $(SYS_LIBS) -o $@
 
 CLEAN_C=\
 	rm -f $(VSFS_OBJDIR)/*.o;\
