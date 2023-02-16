@@ -92,11 +92,11 @@ typedef struct op_file_table_entry {
 } op_ftable_t;
 
 /* superblock functions */
-// int simplefs_fill_super(struct super_block *sb, void *data, int silent);
+// int vsfs_fill_super(struct super_block *sb, void *data, int silent);
 
 /* inode functions */
-// int simplefs_init_inode_cache(void);
-// void simplefs_destroy_inode_cache(void);
-// struct inode *simplefs_iget(struct super_block *sb, unsigned long ino);
+// int vsfs_init_inode_cache(void);
+// void vsfs_destroy_inode_cache(void);
+struct inode *vsfs_iget(struct vsfs_sb_info *sb, unsigned long ino);
 
 #endif /*VSFS_H*/

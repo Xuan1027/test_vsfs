@@ -1,3 +1,5 @@
+#include "vsfs_stdinc.h"
+
 #define print_binary(target,size) _print_binary((int8_t*)target,size)
 static void _print_binary(int8_t *byte, size_t size) {  //little-endian version
   byte += (size - 1);

@@ -11,7 +11,7 @@ CFLAGS += -Wall -O2 -march=native -finline-functions
 LDFLAGS = -I$(VSFS_INCDIR)
 SYS_LIBS = -lrt -lpthread
 
-tar = shm_mkfs shm_mount shm_unlink testfs testinode
+tar = shm_mkfs shm_mount shm_unlink testfs testinode testcached
 EXEC = $(tar:%=$(VSFS_EXEDIR)/%)
 EXT = .c
 

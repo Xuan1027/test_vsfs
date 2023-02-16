@@ -4,7 +4,9 @@
 #include "vsfs_stdinc.h"
 #include "vsfs.h"
 
-static int vsfs_creat();
+static int vsfs_creat(){
+
+}
 
 static int vsfs_open(char *pathname, int flags);
 

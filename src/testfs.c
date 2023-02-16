@@ -37,12 +37,14 @@ int main(int argc, char *argv[]) {
          "\tofs_ibitmap=%u\n"
          "\tofs_iregion=%u\n"
          "\tofs_dbitmap=%u\n"
-         "\tofs_dregion=%u\n",
+         "\tofs_dregion=%u\n"
+         "\tnr_free_inodes=%u\n"
+         "\tnr_free_dblock=%u\n",
          sizeof(struct superblock), sb->info.magic, sb->info.nr_blocks,
          sb->info.nr_ibitmap_blocks, sb->info.nr_iregion_blocks,
          sb->info.nr_dbitmap_blocks, sb->info.nr_dregion_blocks,
          sb->info.ofs_ibitmap, sb->info.ofs_iregion, sb->info.ofs_dbitmap,
-         sb->info.ofs_dregion);
+         sb->info.ofs_dregion, sb->info.nr_free_inodes, sb->info.nr_free_dblock);
   struct vsfs_inode *root_inode =
       (struct vsfs_inode *)&ptr[2 * VSFS_BLOCK_SIZE];
 
