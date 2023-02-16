@@ -55,6 +55,13 @@ struct vsfs_sb_info {
 
 };
 
+struct superblock {
+  struct vsfs_sb_info info;
+  /* Padding to match block size */
+  char padding[4096 - sizeof(struct vsfs_sb_info)];
+};
+
+
 struct vsfs_level {
   unsigned int l1[50];
   unsigned int l2[5];

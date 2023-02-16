@@ -7,12 +7,6 @@
     ret = EXIT_FAILURE;                                                        \
   } while (0)
 
-struct superblock {
-  struct vsfs_sb_info info;
-  /* Padding to match block size */
-  char padding[4096 - sizeof(struct vsfs_sb_info)];
-};
-
 /* Returns ceil(a/b) */
 static inline uint32_t idiv_ceil(uint32_t a, uint32_t b) {
   return (a / b) + !!(a % b);

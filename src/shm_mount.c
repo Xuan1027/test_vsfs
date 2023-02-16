@@ -7,12 +7,6 @@
     ret = EXIT_FAILURE;                                                        \
   } while (0)
 
-struct superblock {
-  struct vsfs_sb_info info;
-  /* Padding to match block size */
-  char padding[4096 - sizeof(struct vsfs_sb_info)];
-};
-
 static int make_shm_cached(char *name, char *ptr) {
   struct superblock *sb = (struct superblock *)ptr;
   char *ibitmap = ptr + (sb->info.ofs_ibitmap * VSFS_BLOCK_SIZE);
@@ -82,7 +76,8 @@ static int open_file_table_test(){
     return opfd;
 
   if(ftruncate(opfd, VSFS_BLOCK_SIZE)==-1){
-    return 1;
+    close(opfd);
+    return -1;
   }
 
   op_ftable_t* data = 

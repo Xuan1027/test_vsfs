@@ -7,12 +7,6 @@
     ret = EXIT_FAILURE;                                                        \
   } while (0)
 
-struct superblock {
-  struct vsfs_sb_info info;
-  /* Padding to match block size */
-  char padding[4096 - sizeof(struct vsfs_sb_info)];
-};
-
 int main(int argc, char *argv[]) {
   int fd = shm_open("test", O_CREAT | O_RDWR, 0666);
 
