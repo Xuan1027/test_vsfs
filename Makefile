@@ -7,11 +7,11 @@ VSFS_OBJDIR := $(VSFS_ROOT)/obj
 VSFS_INCDIR := $(VSFS_ROOT)/src/inc
 VSFS_EXEDIR := $(VSFS_ROOT)/compile
 
-CFLAGS += -Wall -O2 -march=native -finline-functions
+CFLAGS += -Wall -O2 -march=native -finline-functions -g
 LDFLAGS = -I$(VSFS_INCDIR)
 SYS_LIBS = -lrt -lpthread
 
-tar = shm_mkfs shm_mount shm_unlink testfs testinode testcached
+tar = shm_mkfs shm_mount shm_unlink testfs testinode testcached testget
 EXEC = $(tar:%=$(VSFS_EXEDIR)/%)
 EXT = .c
 

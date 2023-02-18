@@ -17,7 +17,7 @@
 struct vsfs_cached_data {
   struct vsfs_sb_info sbi;
   uint32_t ibitmap[VSFS_NR_INODES / 32];
-  uint32_t *dbitmap;
+  uint32_t dbitmap[8*VSFS_NR_INODES/32];
 };
 
 /*
