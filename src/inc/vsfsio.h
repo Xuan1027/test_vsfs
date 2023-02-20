@@ -75,15 +75,16 @@ static int vsfs_creat(char* shm_name, char* file_name){
      * 2.setting the new block to / inode --> blocks, pointer
     */
     if(inode_reg->entry >= inode_reg->blocks*16){
-        printf("added new entry faild, need to add a block for / dir\n");
+        printf("added new entry faild, adding a new block for / dir\n");
+        if(inode_reg->blocks>=(uint16_t)56){
+            printf("the / inode dentry bigger than 56 blocks, need to turn to level 2 pointer\n");
+            put_inode(sup_cached, f_inode);
+            goto sup_cached_err_ext;
+        }
         f_dblock = get_free_dblock(sup_cached);
         printf("get free dblock = %u\n", f_dblock);
         d_entry = inode_reg->entry - inode_reg->blocks*16;
         // if inode pointer <= level 1
-        if(inode_reg->blocks>=57){
-            printf("the inode dir entry bigger than 56 blocks, need to turn to level 2 pointer\n");
-            goto sup_cached_err_ext;
-        }
         inode_reg->block[inode_reg->blocks] = htole32(f_dblock);
         inode_reg->blocks++;
     }

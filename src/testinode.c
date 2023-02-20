@@ -18,7 +18,7 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
     char* fname = (char*)malloc(VSFS_FILENAME_LEN);
-    for(int i=1;i<=20;i++){
+    for(int i=1;i<=900;i++){
         sprintf(fname, "%03d", i);
         int ret = vsfs_creat(argv[1], fname);
         if(ret == -1){
