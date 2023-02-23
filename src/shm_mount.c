@@ -69,7 +69,7 @@ static int init_spdk_daemon(){
   return ret;
 }
 
-static int open_file_table_test(){
+static int creat_open_file_table(){
   // open file table test
   int opfd = shm_open("optab", O_CREAT | O_RDWR, 0666);
   if(opfd < 0)
@@ -80,10 +80,14 @@ static int open_file_table_test(){
     return -1;
   }
 
-  op_ftable_t* data = 
-    (op_ftable_t*)mmap(NULL, VSFS_BLOCK_SIZE, PROT_READ, MAP_SHARED, opfd, 0);
+  op_ftable_t* init = (op_ftable_t*)malloc(VSFS_BLOCK_SIZE);
+  memset(init, 0, VSFS_BLOCK_SIZE);
 
-  munmap(data, VSFS_BLOCK_SIZE);
+  int ret = write(opfd, init, VSFS_BLOCK_SIZE);
+  if (ret != VSFS_BLOCK_SIZE) {
+    free(init);
+    return -1;
+  }
 
   close(opfd);
 
@@ -119,8 +123,8 @@ int main(int argc, char *argv[]) {
     goto unmap;
   }
 
-  if(open_file_table_test() < 0)
-    handle_error("open_file_table_test():");
+  if(creat_open_file_table() < 0)
+    handle_error("creat_open_file_table():");
 
   ret = init_spdk_daemon();
   if (ret == -1) {

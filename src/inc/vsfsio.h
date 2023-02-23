@@ -90,12 +90,220 @@ shm_err_ext:
     return -1;
 }
 
-// static int vsfs_open(char *pathname, int flags);
+typedef struct file_descriptor_table{
+    uint16_t index;
+    op_ftable_t* ptr;
+    struct file_descriptor_table* next;
+}fd_table_t;
+
+struct fd_table_list{
+    fd_table_t* head;
+    fd_table_t* tail;
+};
+
+typedef struct path{
+    uint16_t inode;
+    struct path* next;
+}path_t;
+
+struct path_list{
+    path_t* head;
+    path_t* tail;
+};
+
+// the process's file descriptor talbe
+struct fd_table_list* fd_table = NULL;
+
+// the path where the file pass
+struct path_list* walk_through = NULL;
+
+unsigned short op_entry = 0;
+
+int vsfs_open(char *shm_name, char *pathname, int flags){
+    /**
+     * need to create a file descriptor table
+     * the table need to point to the openfile table
+     * the open file table's counter need to +1
+     * need to update the file's inode and the root's inode
+     * list the path of the dir and prepare to modify the a,c,mtime
+    */
+
+    int ret = -1;
+
+    if(!walk_through){
+        walk_through = (struct path_list*)malloc(sizeof(struct path_list));
+        if(!walk_through){
+            printf("ERR: malloc walk_through <%s>\n", strerror(errno));
+            goto wt_list_ext;
+        }
+        walk_through->head = NULL;
+        walk_through->tail = NULL;
+    }
+
+    // list the pass through inode prepare to modify the a,c,m_time;
+    if(!walk_through->head){
+        walk_through->head = (path_t*)malloc(sizeof(path_t));
+        if(!walk_through->head){
+            printf("ERR: malloc walk_through->head <%s>\n", strerror(errno));
+            goto wt_ext;
+        }
+        walk_through->head->inode = 0;
+        walk_through->head->next = NULL;
+        walk_through->tail = walk_through->head;
+    }
+    else{
+        printf("ERR: the walk_through are not <NULL>\n");
+        goto wt_ext;
+    }
+    /**
+     * first the open file table
+     * second the file descriptor table
+     * then modify the inode
+    */
+    int opfd, fd;
+    op_ftable_t* op_ftable = (op_ftable_t*)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &opfd);
+    if(!op_ftable){
+        printf("ERR: open file table faild!\n");
+        goto wt_ext;
+    }
+    // TODO: find the pathname of the file
+    struct superblock *sb = (struct superblock *)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
+    if(!sb){
+        printf("ERR: open disk(memory) faild!\n");
+        goto sb_ext;
+    }
+    struct vsfs_inode *inode_reg = (struct vsfs_inode *)((char *)sb + sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
+    struct vsfs_dir_block *data_reg = (struct vsfs_dir_block *)((char *)sb + sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
+
+    // check for the pathname in disk
+    uint16_t target_inode;
+    short inode_find = 0;
+    for(int i=0;i<inode_reg->entry;i++){
+        int offset = inode_reg->block[i/16];
+        if(!strcmp(pathname, data_reg[offset].files[i-16*offset].filename)){
+            target_inode = data_reg[offset].files[i-16*offset].inode;
+            inode_find = 1;
+            break;
+        }
+    }
+    if(!inode_find){
+        printf("ERR: file or dir not find!\n");
+        goto not_find;
+    }
+
+    // adding fd_table entry
+    if(!fd_table){
+        fd_table = (struct fd_table_list*)malloc(sizeof(struct fd_table_list));
+        if(!fd_table){
+            printf("ERR: malloc fd_table <%s>\n", strerror(errno));
+            goto not_find;
+        }
+        fd_table->head = NULL;
+        fd_table->tail = NULL;
+    }
+
+    // TODO: build the fd_table
+    if(!fd_table->head){
+        fd_table->head = (fd_table_t*)malloc(sizeof(fd_table_t));
+        if(!fd_table->head){
+            printf("ERR: malloc fd_table->head <%s>\n", strerror(errno));
+            goto fd_ext;
+        }
+        fd_table->head->index = ret = 1;
+        fd_table->head->next = NULL;
+        fd_table->tail = fd_table->head;
+    }
+    else{
+        fd_table->tail->next = (fd_table_t*)malloc(sizeof(fd_table_t));
+        if(!fd_table->tail->next){
+            printf("ERR: malloc fd_table->tail->next <%s>\n", strerror(errno));
+            goto fd_ext;
+        }
+        ret = fd_table->tail->index+1;
+        fd_table->tail = fd_table->tail->next;
+        fd_table->tail->index = ret;
+        fd_table->tail->next = NULL;
+    }
+
+    // find the inode in open file table
+    // and set the fd_table ptr to open file table
+    short optab_find = 0;
+    for(unsigned short i=0;i<op_entry;i++){
+        if(op_ftable[i].inode_nr == target_inode){
+            optab_find = 1;
+            op_ftable[i].ptr_counter++;
+            fd_table->tail->ptr = &(op_ftable[i]);
+            break;
+        }
+    }
+    if(op_entry>=64 && !optab_find){
+        printf("ERR: open file table full, need to allocate a new block\n");
+        ret = -1;
+        goto fd_ext;
+    }
+    if(!optab_find){
+        op_ftable[op_entry].inode_nr = target_inode;
+        op_ftable[op_entry].ptr_counter = 1;
+        op_ftable[op_entry].offset = 0;
+        op_ftable[op_entry].lock = 0;
+        op_entry++;
+    }
+
+    // modify the inode in the walk_through
+    time_t now;
+    time(&now);
+    if(flags & O_RDONLY){
+        for(path_t* tmp=walk_through->head;tmp;tmp=tmp->next)
+            inode_reg[tmp->inode].atime = now;
+    }
+    if(flags & O_WRONLY){
+        for(path_t* tmp=walk_through->head;tmp;tmp=tmp->next){
+            inode_reg[tmp->inode].atime = now;
+            inode_reg[tmp->inode].mtime = now;
+        }
+    }
+
+    shm_close(sb, &fd);
+    shm_close(op_ftable, &opfd);
+
+    return ret;
+fd_ext:
+    if(fd_table->head){
+        for(fd_table_t* tmp=fd_table->head->next;tmp;tmp=tmp->next){
+            free(fd_table->head);
+            fd_table->head = tmp;
+        }
+        if(fd_table->head)
+            free(fd_table->head);
+        fd_table->head = NULL;
+    }
+
+    free(fd_table);
+not_find:
+    shm_close(sb, &fd);
+sb_ext:
+    shm_close(op_ftable, &opfd);
+wt_ext:
+    if(walk_through->head){
+        for(path_t* tmp=walk_through->head->next;tmp;tmp=tmp->next){
+            free(walk_through->head);
+            walk_through->head = tmp;
+        }
+        if(walk_through->head)
+            free(walk_through->head);
+        walk_through->head = NULL;
+    }
+
+    free(walk_through);
+wt_list_ext:
+    return ret;
+}
 
 // static int vsfs_read(int fildes, void *buf, size_t nbyte);
 
 // static int vsfs_write(int fildes, const void *buf, size_t nbyte);
 
+// Remember to free the table
 // static int vsfs_close(int fildes);
 
 // static off_t vsfs_lseek(int fd, off_t offset, int whence);
@@ -136,7 +344,7 @@ int vsfs_stat(char *shm_name, char *pathname, file_stat_t* fre) {
     
     for(int i=0;i<inode_reg->entry;i++){
         int offset = inode_reg->block[i/16];
-        if(strcmp(pathname, data_reg[offset].files[i-16*offset].filename)==0){
+        if(!strcmp(pathname, data_reg[offset].files[i-16*offset].filename)){
             target_inode = data_reg[offset].files[i-16*offset].inode;
             find = 1;
             break;

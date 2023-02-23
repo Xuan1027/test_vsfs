@@ -94,8 +94,10 @@ struct vsfs_dir_block {
 };
 
 typedef struct op_file_table_entry {
+  uint32_t offset;
   uint16_t inode_nr;
   uint8_t ptr_counter;
+  uint8_t lock;
 } op_ftable_t;
 
 /* superblock functions */
@@ -104,6 +106,6 @@ typedef struct op_file_table_entry {
 /* inode functions */
 // int vsfs_init_inode_cache(void);
 // void vsfs_destroy_inode_cache(void);
-struct inode *vsfs_iget(struct vsfs_sb_info *sb, unsigned long ino);
+// struct inode *vsfs_iget(struct vsfs_sb_info *sb, unsigned long ino);
 
 #endif /*VSFS_H*/
