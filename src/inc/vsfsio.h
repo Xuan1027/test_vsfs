@@ -7,83 +7,52 @@
 #include "vsfs_bitmap.h"
 
 /**
- * create a new file 
+ * create a new file
  * \param shm_name the share memory name
-*/
-static int vsfs_creat(char* shm_name, char* file_name){
-
+ */
+int vsfs_creat(char *shm_name, char *file_name)
+{
 
     int fd, fdc;
-    char* name = (char*)malloc(VSFS_FILENAME_LEN);
-    char* shm_cache_name = (char*)malloc(strlen(shm_name)+7);
-    
+    char *name = (char *)malloc(VSFS_FILENAME_LEN);
+    char *shm_cache_name = (char *)malloc(strlen(shm_name) + 7);
+
     strncpy(shm_cache_name, shm_name, strlen(shm_name));
-    strncpy(shm_cache_name+strlen(shm_name), "_cached", 7);
+    strncpy(shm_cache_name + strlen(shm_name), "_cached", 7);
     // printf("shm_cached_name = <%s>\n", shm_cache_name);
 
     strncpy(name, file_name, strlen(file_name));
-    strcat(name, "\0");
 
-    struct superblock* sup = (struct superblock*)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
-    if(!sup)
-      goto shm_err_ext;
-    struct vsfs_cached_data* sup_cached = (struct vsfs_cached_data*)shm_oandm(shm_cache_name, O_RDWR, PROT_READ | PROT_WRITE, &fdc);
-    if(!sup_cached)
-      goto sup_err_ext;
-    struct vsfs_inode* inode_reg = (struct vsfs_inode*)((char*)sup + sup->info.ofs_iregion*VSFS_BLOCK_SIZE);
-    struct vsfs_dir_block* data_reg = (struct vsfs_dir_block*)((char*)sup + sup->info.ofs_dregion*VSFS_BLOCK_SIZE);
+    struct superblock *sb = (struct superblock *)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
+    if (!sb)
+        goto shm_err_ext;
+    struct vsfs_cached_data *sb_cached = (struct vsfs_cached_data *)shm_oandm(shm_cache_name, O_RDWR, PROT_READ | PROT_WRITE, &fdc);
+    if (!sb_cached)
+        goto sb_err_ext;
+    struct vsfs_inode *inode_reg = (struct vsfs_inode *)((char *)sb + sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
+    struct vsfs_dir_block *data_reg = (struct vsfs_dir_block *)((char *)sb + sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
 
-    // printf("vsfs_sb_info: (%ld)\n"
-    //        "\tmagic=%#x\n"
-    //        "\tnr_blocks=%u\n"
-    //        "\tnr_ibitmap_blocks=%u\n"
-    //        "\tnr_iregion_blocks=%u\n"
-    //        "\tnr_dbitmap_blocks=%u\n"
-    //        "\tnr_dregion_blocks=%u\n"
-    //        "\tofs_ibitmap=%u\n"
-    //        "\tofs_iregion=%u\n"
-    //        "\tofs_dbitmap=%u\n"
-    //        "\tofs_dregion=%u\n"
-    //        "\tnr_free_inodes=%u\n"
-    //        "\tnr_free_dblock=%u\n",
-    //        sizeof(struct superblock), sup->info.magic, sup->info.nr_blocks,
-    //        sup->info.nr_ibitmap_blocks, sup->info.nr_iregion_blocks,
-    //        sup->info.nr_dbitmap_blocks, sup->info.nr_dregion_blocks,
-    //        sup->info.ofs_ibitmap, sup->info.ofs_iregion, sup->info.ofs_dbitmap,
-    //        sup->info.ofs_dregion, sup->info.nr_free_inodes, sup->info.nr_free_dblock);
-        
-    // printf("super_blo position is %p\n"
-    //         "inode_reg position is %p\n"
-    //         , sup, inode_reg);
-
-    // printf("vsfs_root_inode: %p\n"
-    //         "\tmode=%hu\n"
-    //         "\tblocks=%hu\n"
-    //         "\tentry=%u\n"
-    //         "\tatime=%lu\n"
-    //         "\tctime=%lu\n"
-    //         "\tmtime=%lu\n"
-    //         ,  inode_reg, inode_reg->mode, inode_reg->blocks, inode_reg->entry, inode_reg->atime, inode_reg->ctime, inode_reg->mtime);
-
-    uint32_t f_inode = get_free_inode(sup_cached), f_dblock = (uint32_t)0;
+    uint32_t f_inode = get_free_inode(sb_cached), f_dblock = (uint32_t)0;
     uint32_t d_entry = inode_reg->entry;
-    printf("get free inode = %u\n", f_inode);
-    
+    // printf("get free inode = %u\n", f_inode);
+
     /**
      * the step of added an new block to / dir
      * 1.get a free data region
      * 2.setting the new block to / inode --> blocks, pointer
-    */
-    if(inode_reg->entry >= inode_reg->blocks*16){
-        printf("added new entry faild, adding a new block for / dir\n");
-        if(inode_reg->blocks>=(uint16_t)56){
+     */
+    if (inode_reg->entry >= inode_reg->blocks * 16)
+    {
+        // printf("added new entry faild, adding a new block for / dir\n");
+        if (inode_reg->blocks >= 56)
+        {
             printf("the / inode dentry bigger than 56 blocks, need to turn to level 2 pointer\n");
-            put_inode(sup_cached, f_inode);
+            put_inode(sb_cached, f_inode);
             goto sup_cached_err_ext;
         }
-        f_dblock = get_free_dblock(sup_cached);
-        printf("get free dblock = %u\n", f_dblock);
-        d_entry = inode_reg->entry - inode_reg->blocks*16;
+        f_dblock = get_free_dblock(sb_cached);
+        // printf("get free dblock = %u\n", f_dblock);
+        d_entry = inode_reg->entry - inode_reg->blocks * 16;
         // if inode pointer <= level 1
         inode_reg->block[inode_reg->blocks] = htole32(f_dblock);
         inode_reg->blocks++;
@@ -91,7 +60,7 @@ static int vsfs_creat(char* shm_name, char* file_name){
 
     // writing the data block entry
     data_reg[f_dblock].files[d_entry].inode = f_inode;
-    strncpy(data_reg[f_dblock].files[d_entry].filename , name, strlen(name)+1);
+    strncpy(data_reg[f_dblock].files[d_entry].filename, name, strlen(name) + 1);
     inode_reg->entry++;
     free(name);
 
@@ -107,55 +76,15 @@ static int vsfs_creat(char* shm_name, char* file_name){
     inode_reg[f_inode].atime = inode_reg[f_inode].ctime = inode_reg[f_inode].mtime = now;
     inode_reg[f_inode].size = htole32(0);
 
-    printf("\nAfter the creat the file :\n"
-            "vsfs_root_inode: %p\n"
-            "\tmode=%hu\n"
-            "\tblocks=%hu\n"
-            "\tentry=%u\n"
-            "\tatime=%s"
-            ,  inode_reg, inode_reg->mode, inode_reg->blocks, inode_reg->entry, ctime(&(inode_reg->atime)));
-    printf("\tctime=%s"
-            , ctime(&(inode_reg->ctime)));
-    printf("\tmtime=%s"
-            , ctime(&(inode_reg->mtime)));
-
-    printf("-----------------------------------\n");
-
-    // stop printf the inode
-    if(inode_reg->entry != 16)
-        goto end;
-
-    for(int i=0;i<inode_reg->entry-1;i++){
-        printf("\nthe inode <%d>:\n"
-                "vsfs_inode_region: %p\n"
-                "\tmode=%hu\n"
-                "\tblocks=%hu\n"
-                "\tsize=%u\n"
-                "\tatime=%s"
-                , i,  &inode_reg[i], inode_reg[i].mode, inode_reg[i].blocks, inode_reg[i].size
-                , ctime(&(inode_reg[i].atime)));
-        printf("\tctime=%s"
-                , ctime(&(inode_reg[i].ctime)));
-        printf("\tmtime=%s"
-                , ctime(&(inode_reg[i].mtime)));
-    }
-
-    printf("the contain of the / dir is:\n");
-    printf("inode_num\tfilename\n");
-    for(int i=0;i<inode_reg->entry;i++){
-        printf("%2hu\t\t%s\n", data_reg[f_dblock].files[i].inode, data_reg[f_dblock].files[i].filename);
-    }
-
-end:
-    shm_close(sup, &fd);
-    shm_close(sup_cached, &fdc);
+    shm_close(sb, &fd);
+    shm_close(sb_cached, &fdc);
     free(shm_cache_name);
 
     return 0;
 sup_cached_err_ext:
-    shm_close(sup_cached, &fdc);
-sup_err_ext:
-    shm_close(sup, &fd);
+    shm_close(sb_cached, &fdc);
+sb_err_ext:
+    shm_close(sb, &fd);
     free(shm_cache_name);
 shm_err_ext:
     return -1;
@@ -171,11 +100,109 @@ shm_err_ext:
 
 // static off_t vsfs_lseek(int fd, off_t offset, int whence);
 
-// static int vsfs_stat(const char *pathname, struct stat *st) {
-//   memset(st, 0, sizeof(struct stat));
+// struct file_stat total size is 128B
+typedef struct file_stat
+{
+    char mode[5];   /* File mode -> drwx */
+    uint16_t blocks; /* Total number of data blocks count */
+    union
+    {
+        uint32_t size; /* File: size in byte || Dir: entry num */
+        uint32_t entry;
+    };
+    char atime[39]; /* Access time */
+    char ctime[39]; /* Inode change time */
+    char mtime[39]; /* Modification time */
+}file_stat_t;
 
-// }
+/**
+ * looking the status of an inode
+ * \param shm_name the share memory name
+ * \param pathename the file wantted to see for the inode
+ * \param ret the status of an inode
+ * \return 0 for success, -1 for error
+*/
+int vsfs_stat(char *shm_name, char *pathname, file_stat_t* fre) {
+
+    int fd;
+    struct superblock *sb = (struct superblock *)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
+    if(!sb)
+        goto op_shm_err;
+    struct vsfs_inode *inode_reg = (struct vsfs_inode *)((char *)sb + sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
+    struct vsfs_dir_block *data_reg = (struct vsfs_dir_block *)((char *)sb + sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
+    
+    uint16_t target_inode = 0;
+    short find = 0;
+    
+    for(int i=0;i<inode_reg->entry;i++){
+        int offset = inode_reg->block[i/16];
+        if(strcmp(pathname, data_reg[offset].files[i-16*offset].filename)==0){
+            target_inode = data_reg[offset].files[i-16*offset].inode;
+            find = 1;
+            break;
+        }
+    }
+    if(!find){
+        fre = NULL;
+        goto not_find;
+    }
+    
+    // printf("\nthe inode <%d>:\n"
+    //         "vsfs_inode_region: %p\n"
+    //         "\tmode=%hu\n"
+    //         "\tblocks=%hu\n"
+    //         "\tsize=%u\n"
+    //         "\tatime=%s"
+    //         , target_inode,  &inode_reg[target_inode], inode_reg[target_inode].mode, inode_reg[target_inode].blocks, inode_reg[target_inode].size
+    //         , ctime(&(inode_reg[target_inode].atime)));
+    // printf("\tctime=%s"
+    //         , ctime(&(inode_reg[target_inode].ctime)));
+    // printf("\tmtime=%s"
+    //         , ctime(&(inode_reg[target_inode].mtime)));
 
 
+    // setting the ret
+    if((inode_reg[target_inode].mode & (1<<3))){
+        fre->mode[0] = 'd';
+        fre->entry = inode_reg[target_inode].entry;
+    }
+    else{
+        fre->mode[0] = '-';
+        fre->size = inode_reg[target_inode].size;
+    }
+    if((inode_reg[target_inode].mode & (1<<2)))
+        fre->mode[1] = 'r';
+    else
+        fre->mode[1] = '-';
+    if((inode_reg[target_inode].mode & (1<<1)))
+        fre->mode[2] = 'w';
+    else
+        fre->mode[2] = '-';
+    if((inode_reg[target_inode].mode & (1<<0)))
+        fre->mode[3] = 'x';
+    else
+        fre->mode[3] = '-';
+    fre->mode[4] = '\0';
+    
+    fre->blocks = inode_reg[target_inode].blocks;
+    strcpy(fre->ctime, ctime(&(inode_reg[target_inode].ctime)));
+    strcpy(fre->atime, ctime(&(inode_reg[target_inode].atime)));
+    strcpy(fre->mtime, ctime(&(inode_reg[target_inode].mtime)));
 
-#endif/*VSFSIO_H*/
+    // print all of the / dir
+    // printf("the contain of the / dir is:\n");
+    // printf("inode_num\tfilename\n");
+    // for(int i=0;i<inode_reg->entry;i++){
+    //     int offset = inode_reg->block[i/16];
+    //     printf("%2hu\t\t%s\n", data_reg[offset].files[i-16*offset].inode, data_reg[offset].files[i-16*offset].filename);
+    // }
+
+not_find:
+    shm_close(sb, &fd);
+    return 0;
+op_shm_err:
+    fre = NULL;
+    return -1;
+}
+
+#endif /*VSFSIO_H*/

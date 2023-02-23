@@ -31,6 +31,7 @@ clean :
 setup :
 	$(VSFS_EXEDIR)/shm_mkfs test
 	$(VSFS_EXEDIR)/shm_mount test
+	$(VSFS_EXEDIR)/testinode test
 
 $(VSFS_OBJDIR)/%.o : $(VSFS_SRCDIR)/%.c $(VSFS_INCDIR)/*.h
 	$(Q)echo "  CC $(notdir $@)";\
