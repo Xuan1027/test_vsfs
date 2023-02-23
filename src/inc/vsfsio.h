@@ -181,8 +181,16 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
     for(int i=0;i<inode_reg->entry;i++){
         int offset = inode_reg->block[i/16];
         if(!strcmp(pathname, data_reg[offset].files[i-16*offset].filename)){
-            target_inode = data_reg[offset].files[i-16*offset].inode;
             inode_find = 1;
+            target_inode = data_reg[offset].files[i-16*offset].inode;
+            walk_through->tail->next = (path_t*)malloc(sizeof(path_t));
+            if(!walk_through->tail->next){
+                printf("ERR: malloc walk_through->tail->next <%s>\n", strerror(errno));
+                goto not_find;
+            }
+            walk_through->tail = walk_through->tail->next;
+            walk_through->tail->inode = target_inode;
+            walk_through->tail->next = NULL;
             break;
         }
     }
