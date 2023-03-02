@@ -6,12 +6,21 @@
 #include "vsfs_shmfunc.h"
 #include "vsfs_bitmap.h"
 
+#define SHOW_PROC 0
+#define OP_LIMIT VSFS_BLOCK_SIZE/sizeof(op_ftable_t)
+
 /**
  * create a new file
  * \param shm_name the share memory name
  */
 int vsfs_creat(char *shm_name, char *file_name)
 {
+    if(SHOW_PROC)
+        printf("vsfs_creat(): init the setting\n");
+    if(strlen(file_name) >= VSFS_FILENAME_LEN){
+        printf("the file_name's lens over the limit!\n");
+        goto shm_err_ext;
+    }
 
     int fd, fdc;
     char *name = (char *)malloc(VSFS_FILENAME_LEN);
@@ -32,10 +41,12 @@ int vsfs_creat(char *shm_name, char *file_name)
     struct vsfs_inode *inode_reg = (struct vsfs_inode *)((char *)sb + sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
     struct vsfs_dir_block *data_reg = (struct vsfs_dir_block *)((char *)sb + sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
 
-    uint32_t f_inode = get_free_inode(sb_cached), f_dblock = (uint32_t)0;
-    uint32_t d_entry = inode_reg->entry;
+    uint32_t f_inode = get_free_inode(sb_cached), f_dblock = inode_reg->entry/16;
+    uint32_t d_entry = inode_reg->entry - f_dblock*16;
     // printf("get free inode = %u\n", f_inode);
 
+    if(SHOW_PROC)
+        printf("vsfs_creat(): check block enough\n");
     /**
      * the step of added an new block to / dir
      * 1.get a free data region
@@ -46,7 +57,7 @@ int vsfs_creat(char *shm_name, char *file_name)
         // printf("added new entry faild, adding a new block for / dir\n");
         if (inode_reg->blocks >= 56)
         {
-            printf("the / inode dentry bigger than 56 blocks, need to turn to level 2 pointer\n");
+            printf("the / inode dentry bigger than 56 blocks, need to turn to level 2 pointer!\n");
             put_inode(sb_cached, f_inode);
             goto sup_cached_err_ext;
         }
@@ -58,6 +69,8 @@ int vsfs_creat(char *shm_name, char *file_name)
         inode_reg->blocks++;
     }
 
+    if(SHOW_PROC)
+        printf("vsfs_creat(): setting the new inode\n");
     // writing the data block entry
     data_reg[f_dblock].files[d_entry].inode = f_inode;
     strncpy(data_reg[f_dblock].files[d_entry].filename, name, strlen(name) + 1);
@@ -76,6 +89,17 @@ int vsfs_creat(char *shm_name, char *file_name)
     inode_reg[f_inode].atime = inode_reg[f_inode].ctime = inode_reg[f_inode].mtime = now;
     inode_reg[f_inode].size = htole32(0);
 
+    // print all of the / dir
+    // printf("the contain of the / dir is:\n");
+    // printf("inode_num\tfilename\n");
+    // int offset = 0;
+    // for(int i=0;i<inode_reg->entry;i++){
+    //     if(i/16 != offset)
+    //         printf("in block <%d> :\n", offset+1);
+    //     offset = inode_reg->block[i/16];
+    //     printf("%2hu\t\t%s\n", data_reg[offset].files[i-16*offset].inode, data_reg[offset].files[i-16*offset].filename);
+    // }
+
     shm_close(sb, &fd);
     shm_close(sb_cached, &fdc);
     free(shm_cache_name);
@@ -90,9 +114,16 @@ shm_err_ext:
     return -1;
 }
 
+typedef struct path{
+    uint16_t inode;
+    struct path* next;
+}path_t;
+
 typedef struct file_descriptor_table{
     uint16_t index;
     op_ftable_t* ptr;
+    path_t* p_head;
+    path_t* p_tail;
     struct file_descriptor_table* next;
 }fd_table_t;
 
@@ -101,21 +132,8 @@ struct fd_table_list{
     fd_table_t* tail;
 };
 
-typedef struct path{
-    uint16_t inode;
-    struct path* next;
-}path_t;
-
-struct path_list{
-    path_t* head;
-    path_t* tail;
-};
-
 // the process's file descriptor talbe
 struct fd_table_list* fd_table = NULL;
-
-// the path where the file pass
-struct path_list* walk_through = NULL;
 
 unsigned short op_entry = 0;
 
@@ -130,51 +148,90 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
 
     int ret = -1;
 
-    if(!walk_through){
-        walk_through = (struct path_list*)malloc(sizeof(struct path_list));
-        if(!walk_through){
-            printf("ERR: malloc walk_through <%s>\n", strerror(errno));
-            goto wt_list_ext;
-        }
-        walk_through->head = NULL;
-        walk_through->tail = NULL;
+    if(strlen(pathname) >= VSFS_FILENAME_LEN){
+        printf("ERR: the pathname's lens over the limit!\n");
+        goto wt_list_ext;
     }
 
-    // list the pass through inode prepare to modify the a,c,m_time;
-    if(!walk_through->head){
-        walk_through->head = (path_t*)malloc(sizeof(path_t));
-        if(!walk_through->head){
-            printf("ERR: malloc walk_through->head <%s>\n", strerror(errno));
-            goto wt_ext;
-        }
-        walk_through->head->inode = 0;
-        walk_through->head->next = NULL;
-        walk_through->tail = walk_through->head;
-    }
-    else{
-        printf("ERR: the walk_through are not <NULL>\n");
-        goto wt_ext;
-    }
     /**
      * first the open file table
      * second the file descriptor table
      * then modify the inode
     */
+    if(SHOW_PROC)
+        printf("vsfs_open(): opening the shm\n");
     int opfd, fd;
-    op_ftable_t* op_ftable = (op_ftable_t*)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &opfd);
+    op_ftable_t* op_ftable = (op_ftable_t*)shm_oandm("optab", O_RDWR, PROT_READ | PROT_WRITE, &opfd);
     if(!op_ftable){
-        printf("ERR: open file table faild!\n");
-        goto wt_ext;
+        printf("ERR: in vsfs_open(): open file table faild!\n");
+        goto wt_list_ext;
     }
+    // printf("in vsfs_open(): the open file table position is: %p\n", op_ftable);
     // TODO: find the pathname of the file
     struct superblock *sb = (struct superblock *)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
     if(!sb){
-        printf("ERR: open disk(memory) faild!\n");
+        printf("ERR: in vsfs_open(): open disk(memory) faild!\n");
         goto sb_ext;
     }
     struct vsfs_inode *inode_reg = (struct vsfs_inode *)((char *)sb + sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
     struct vsfs_dir_block *data_reg = (struct vsfs_dir_block *)((char *)sb + sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
 
+    if(SHOW_PROC)
+        printf("vsfs_open(): check the fd_table\n");
+    // adding fd_table entry
+    if(!fd_table){
+        fd_table = (struct fd_table_list*)malloc(sizeof(struct fd_table_list));
+        if(!fd_table){
+            printf("ERR: in vsfs_open(): malloc fd_table <%s>\n", strerror(errno));
+            goto free_sb_ca;
+        }
+        fd_table->head = NULL;
+        fd_table->tail = NULL;
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_open(): adding the fd_table\n");
+    // TODO: build the fd_table
+    if(!fd_table->head){
+        fd_table->head = (fd_table_t*)malloc(sizeof(fd_table_t));
+        if(!fd_table->head){
+            printf("ERR: in vsfs_open(): malloc fd_table->head <%s>\n", strerror(errno));
+            goto free_fd;
+        }
+        fd_table->head->index = ret = 1;
+        fd_table->head->next = NULL;
+        fd_table->head->p_head = (path_t*)malloc(sizeof(path_t));
+        if(!fd_table->head->p_head){
+            printf("ERR: in vsfs_open(): malloc fd_table->head->p_head <%s>\n", strerror(errno));
+            goto free_fd_path;
+        }
+        fd_table->head->p_head->inode = 0;
+        fd_table->head->p_head->next = NULL;
+        fd_table->head->p_tail = fd_table->head->p_head;
+        fd_table->tail = fd_table->head;
+    }
+    else{
+        fd_table->tail->next = (fd_table_t*)malloc(sizeof(fd_table_t));
+        if(!fd_table->tail->next){
+            printf("ERR: in vsfs_open(): malloc fd_table->tail->next <%s>\n", strerror(errno));
+            goto free_fd_path;
+        }
+        ret = fd_table->tail->index+1;
+        fd_table->tail = fd_table->tail->next;
+        fd_table->tail->p_head = (path_t*)malloc(sizeof(path_t));
+        if(!fd_table->tail->p_head){
+            printf("ERR: in vsfs_open(): malloc fd_table->head->p_head <%s>\n", strerror(errno));
+            goto free_fd_path;
+        }
+        fd_table->tail->p_head->inode = 0;
+        fd_table->tail->p_head->next = NULL;
+        fd_table->tail->p_tail = fd_table->tail->p_head;
+        fd_table->tail->index = ret;
+        fd_table->tail->next = NULL;
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_open(): finding the pathname\n");
     // check for the pathname in disk
     uint16_t target_inode;
     short inode_find = 0;
@@ -183,56 +240,24 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
         if(!strcmp(pathname, data_reg[offset].files[i-16*offset].filename)){
             inode_find = 1;
             target_inode = data_reg[offset].files[i-16*offset].inode;
-            walk_through->tail->next = (path_t*)malloc(sizeof(path_t));
-            if(!walk_through->tail->next){
-                printf("ERR: malloc walk_through->tail->next <%s>\n", strerror(errno));
-                goto not_find;
+            fd_table->tail->p_tail->next = (path_t*)malloc(sizeof(path_t));
+            if(!fd_table->tail->p_tail->next){
+                printf("ERR: in vsfs_open(): malloc walk_through->tail->next <%s>\n", strerror(errno));
+                goto free_fd_path;
             }
-            walk_through->tail = walk_through->tail->next;
-            walk_through->tail->inode = target_inode;
-            walk_through->tail->next = NULL;
+            fd_table->tail->p_tail = fd_table->tail->p_tail->next;
+            fd_table->tail->p_tail->inode = target_inode;
+            fd_table->tail->p_tail->next = NULL;
             break;
         }
     }
     if(!inode_find){
-        printf("ERR: file or dir not find!\n");
-        goto not_find;
+        printf("ERR: in vsfs_open(): file or dir not find!\n");
+        goto free_fd_path;
     }
 
-    // adding fd_table entry
-    if(!fd_table){
-        fd_table = (struct fd_table_list*)malloc(sizeof(struct fd_table_list));
-        if(!fd_table){
-            printf("ERR: malloc fd_table <%s>\n", strerror(errno));
-            goto not_find;
-        }
-        fd_table->head = NULL;
-        fd_table->tail = NULL;
-    }
-
-    // TODO: build the fd_table
-    if(!fd_table->head){
-        fd_table->head = (fd_table_t*)malloc(sizeof(fd_table_t));
-        if(!fd_table->head){
-            printf("ERR: malloc fd_table->head <%s>\n", strerror(errno));
-            goto fd_ext;
-        }
-        fd_table->head->index = ret = 1;
-        fd_table->head->next = NULL;
-        fd_table->tail = fd_table->head;
-    }
-    else{
-        fd_table->tail->next = (fd_table_t*)malloc(sizeof(fd_table_t));
-        if(!fd_table->tail->next){
-            printf("ERR: malloc fd_table->tail->next <%s>\n", strerror(errno));
-            goto fd_ext;
-        }
-        ret = fd_table->tail->index+1;
-        fd_table->tail = fd_table->tail->next;
-        fd_table->tail->index = ret;
-        fd_table->tail->next = NULL;
-    }
-
+    if(SHOW_PROC)
+        printf("vsfs_open(): finding the op file table\n");
     // find the inode in open file table
     // and set the fd_table ptr to open file table
     short optab_find = 0;
@@ -244,28 +269,32 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
             break;
         }
     }
-    if(op_entry>=64 && !optab_find){
-        printf("ERR: open file table full, need to allocate a new block\n");
+    if(op_entry>=OP_LIMIT && !optab_find){
+        printf("ERR: in vsfs_open(): open file table full, need to allocate a new block\n");
         ret = -1;
-        goto fd_ext;
+        goto free_fd_path;
     }
     if(!optab_find){
         op_ftable[op_entry].inode_nr = target_inode;
         op_ftable[op_entry].ptr_counter = 1;
         op_ftable[op_entry].offset = 0;
         op_ftable[op_entry].lock = 0;
+        fd_table->tail->ptr = &(op_ftable[op_entry]);
+        // printf("the pointer point to %p\n", &(op_ftable[op_entry]));
         op_entry++;
     }
 
+    if(SHOW_PROC)
+        printf("vsfs_open(): modify the time\n");
     // modify the inode in the walk_through
     time_t now;
     time(&now);
     if(flags & O_RDONLY){
-        for(path_t* tmp=walk_through->head;tmp;tmp=tmp->next)
+        for(path_t* tmp=fd_table->head->p_head;tmp;tmp=tmp->next)
             inode_reg[tmp->inode].atime = now;
     }
-    if(flags & O_WRONLY){
-        for(path_t* tmp=walk_through->head;tmp;tmp=tmp->next){
+    if(flags & (O_WRONLY | O_RDWR)){
+        for(path_t* tmp=fd_table->head->p_head;tmp;tmp=tmp->next){
             inode_reg[tmp->inode].atime = now;
             inode_reg[tmp->inode].mtime = now;
         }
@@ -275,7 +304,17 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
     shm_close(op_ftable, &opfd);
 
     return ret;
-fd_ext:
+free_fd_path:
+    if(fd_table->head->p_head){
+        for(path_t* tmp=fd_table->head->p_head->next;tmp;tmp=tmp->next){
+            free(fd_table->head->p_head);
+            fd_table->head->p_head = tmp;
+        }
+        if(fd_table->head->p_head)
+            free(fd_table->head->p_head);
+    }
+
+free_fd:
     if(fd_table->head){
         for(fd_table_t* tmp=fd_table->head->next;tmp;tmp=tmp->next){
             free(fd_table->head);
@@ -287,22 +326,11 @@ fd_ext:
     }
 
     free(fd_table);
-not_find:
+free_sb_ca:
     shm_close(sb, &fd);
 sb_ext:
     shm_close(op_ftable, &opfd);
-wt_ext:
-    if(walk_through->head){
-        for(path_t* tmp=walk_through->head->next;tmp;tmp=tmp->next){
-            free(walk_through->head);
-            walk_through->head = tmp;
-        }
-        if(walk_through->head)
-            free(walk_through->head);
-        walk_through->head = NULL;
-    }
 
-    free(walk_through);
 wt_list_ext:
     return ret;
 }
@@ -312,7 +340,100 @@ wt_list_ext:
 // static int vsfs_write(int fildes, const void *buf, size_t nbyte);
 
 // Remember to free the table
-// static int vsfs_close(int fildes);
+/**
+ * \return 0 for success, -1 for err
+*/
+int vsfs_close(int fildes){
+
+    if(SHOW_PROC)
+        printf("vsfs_close(): checking all the table\n");
+    if(!fd_table){
+        printf("ERR: in vsfs_close(): fd_table are not exist!\n");
+        return -1;
+    }
+    if(!fd_table->head){
+        printf("ERR: in vsfs_close(): fd_table's head are not exist!\n");
+        return -1;
+    }
+    if(!fd_table->head->p_head){
+        printf("ERR: in vsfs_close(): fd_table's path_head are not exist!\n");
+        return -1;
+    }
+    /**
+     * need to close fd_table, path, open file table counter--
+    */
+
+    int opfd;
+    op_ftable_t* op_ftable = (op_ftable_t*)shm_oandm("optab", O_RDWR, PROT_READ | PROT_WRITE, &opfd);
+    if(!op_ftable){
+        printf("ERR: in vsfs_close(): open file table faild!\n");
+        return -1;
+    }
+    // printf("in vsfs_close(): the open file table position is: %p\n", op_ftable);
+
+    if(SHOW_PROC)
+        printf("vsfs_close(): finding the fd in fd_table\n");
+    short fd_find = 0;
+    fd_table_t* fd_rm;
+    if(fd_table->head->index == fildes){
+        fd_find = 1;
+        fd_rm = fd_table->head;
+        fd_table->head = fd_table->head->next;
+    }
+    else{
+        for(fd_table_t* tmp=fd_table->head;tmp->next;tmp=tmp->next){
+            if(tmp->next->index == fildes){
+                fd_find = 1;
+                fd_rm = tmp->next;
+                tmp->next = tmp->next->next;
+            }
+        }
+    }
+    if(!fd_find){
+        printf("ERR: in vsfs_close(): doesn't find the target!\n");
+        goto err_ext;
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_close(): remove the path about the fd\n");
+    // deal with the path
+    if(fd_rm->p_head){
+        for(path_t* tmp=fd_rm->p_head->next;tmp;tmp=tmp->next){
+            free(fd_rm->p_head);
+            fd_rm->p_head = tmp;
+        }
+        if(fd_rm->p_head)
+            free(fd_rm->p_head);
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_close(): modify the open file table\n");
+    // printf("the position of ptr_counter is: %p\n", fd_rm->ptr);
+    if(fd_rm->ptr->ptr_counter == 0){
+        printf("ERR: in vsfs_close(): the target's open file table counter is already 0\n");
+        goto err_ext;
+    }
+    fd_rm->ptr->ptr_counter--;
+    if(!fd_rm->ptr->ptr_counter){
+        // del the open file table and move the last one replace
+        if(op_entry <= 0){
+            printf("ERR: in vsfs_close(): the op_entry is small than 0\n");
+            goto err_ext;
+        }
+        else if(op_entry > 1){
+            // untest this memcpy
+            memcpy(fd_rm->ptr, &(op_ftable[op_entry-1]), sizeof(op_ftable_t));
+        }
+        op_entry--;
+    }
+
+    free(fd_rm);
+    shm_close(op_ftable, &opfd);
+    return 0;
+err_ext:
+    shm_close(op_ftable, &opfd);
+    return -1;
+}
 
 // static off_t vsfs_lseek(int fd, off_t offset, int whence);
 
@@ -347,9 +468,10 @@ int vsfs_stat(char *shm_name, char *pathname, file_stat_t* fre) {
     struct vsfs_inode *inode_reg = (struct vsfs_inode *)((char *)sb + sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
     struct vsfs_dir_block *data_reg = (struct vsfs_dir_block *)((char *)sb + sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
     
+    if(SHOW_PROC)
+        printf("vsfs_stat(): finding the file in shm\n");
     uint16_t target_inode = 0;
     short find = 0;
-    
     for(int i=0;i<inode_reg->entry;i++){
         int offset = inode_reg->block[i/16];
         if(!strcmp(pathname, data_reg[offset].files[i-16*offset].filename)){
@@ -376,7 +498,8 @@ int vsfs_stat(char *shm_name, char *pathname, file_stat_t* fre) {
     // printf("\tmtime=%s"
     //         , ctime(&(inode_reg[target_inode].mtime)));
 
-
+    if(SHOW_PROC)
+        printf("vsfs_stat(): setting the return struct\n");
     // setting the ret
     if((inode_reg[target_inode].mode & (1<<3))){
         fre->mode[0] = 'd';
