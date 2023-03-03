@@ -10,8 +10,12 @@ int main(int argc, char** argv){
         exit(EXIT_FAILURE);
     }
     file_stat_t* re = (file_stat_t*)malloc(sizeof(file_stat_t));
-    vsfs_stat(argv[1], argv[2], re);
+    int ret = vsfs_stat(argv[1], argv[2], re);
 
+    if(ret != 0){
+        printf("err!\n");
+        return -1;
+    }
     printf("inode of <%s>:\n"
             "\tmode = %s\n"
             "\tsize = %d\n"

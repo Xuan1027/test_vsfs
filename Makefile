@@ -37,14 +37,17 @@ setup :
 
 $(VSFS_OBJDIR)/%.o : $(VSFS_SRCDIR)/%.c $(VSFS_INCDIR)/*.h
 	$(Q)echo "  CC $(notdir $@)";\
+	mkdir -p obj;\
 	$(CC) $(LDFLAGS) -c $< $(CFLAGS) -o $@
 
 $(VSFS_OBJDIR)/%.o : $(VSFS_TESDIR)/%.c $(VSFS_INCDIR)/*.h
 	$(Q)echo "  CC $(notdir $@)";\
+	mkdir -p obj;\
 	$(CC) $(LDFLAGS) -c $< $(CFLAGS) -o $@
 
 $(VSFS_EXEDIR)/% : $(VSFS_OBJDIR)/%.o
 	$(Q)echo "  LINK $(notdir $@)";\
+	mkdir -p compile;\
 	$(CC) $< $(SYS_LIBS) -o $@
 
 CLEAN_C=\

@@ -6,7 +6,7 @@
 #include "vsfs_shmfunc.h"
 #include "vsfs_bitmap.h"
 
-#define SHOW_PROC 0
+#define SHOW_PROC 1
 #define OP_LIMIT VSFS_BLOCK_SIZE/sizeof(op_ftable_t)
 
 typedef struct path{
@@ -68,11 +68,11 @@ int vsfs_creat(char *shm_name, char *file_name)
     char *name = (char *)malloc(VSFS_FILENAME_LEN);
     char *shm_cache_name = (char *)malloc(strlen(shm_name) + 7);
 
-    strncpy(shm_cache_name, shm_name, strlen(shm_name));
-    strncpy(shm_cache_name + strlen(shm_name), "_cached", 7);
+    memcpy(shm_cache_name, shm_name, strlen(shm_name));
+    memcpy(shm_cache_name + strlen(shm_name), "_cached", 7);
     // printf("shm_cached_name = <%s>\n", shm_cache_name);
 
-    strncpy(name, file_name, strlen(file_name));
+    memcpy(name, file_name, strlen(file_name));
 
     struct superblock *sb = (struct superblock *)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
     if (!sb)
@@ -115,7 +115,7 @@ int vsfs_creat(char *shm_name, char *file_name)
         printf("vsfs_creat(): setting the new inode\n");
     // writing the data block entry
     data_reg[f_dblock].files[d_entry].inode = f_inode;
-    strncpy(data_reg[f_dblock].files[d_entry].filename, name, strlen(name) + 1);
+    memcpy(data_reg[f_dblock].files[d_entry].filename, name, strlen(name) + 1);
     inode_reg->entry++;
     free(name);
 
@@ -275,6 +275,15 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
         goto free_fd_path;
     }
 
+    if(SHOW_PROC){
+        printf("printing the path of inode <%u>:\n", target_inode);
+        for(path_t* tmp=fd_table->tail->p_head;tmp;tmp=tmp->next){
+            printf("%u\n", tmp->inode);
+        }
+        printf("end of the printing\n");
+    }
+
+
     if(SHOW_PROC)
         printf("vsfs_open(): finding the op file table\n");
     // find the inode in open file table
@@ -308,12 +317,12 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
     // modify the inode in the walk_through
     time_t now;
     time(&now);
-    if(flags & O_RDONLY){
-        for(path_t* tmp=fd_table->head->p_head;tmp;tmp=tmp->next)
+    if(flags == O_RDONLY){
+        for(path_t* tmp=fd_table->tail->p_head;tmp;tmp=tmp->next)
             inode_reg[tmp->inode].atime = now;
     }
-    if(flags & (O_WRONLY | O_RDWR)){
-        for(path_t* tmp=fd_table->head->p_head;tmp;tmp=tmp->next){
+    else if(flags == O_WRONLY ||flags ==  O_RDWR){
+        for(path_t* tmp=fd_table->tail->p_head;tmp;tmp=tmp->next){
             inode_reg[tmp->inode].atime = now;
             inode_reg[tmp->inode].mtime = now;
         }
@@ -534,9 +543,11 @@ int vsfs_stat(char *shm_name, char *pathname, file_stat_t* fre) {
     //     printf("%2hu\t\t%s\n", data_reg[offset].files[i-16*offset].inode, data_reg[offset].files[i-16*offset].filename);
     // }
 
-not_find:
     shm_close(sb, &fd);
     return 0;
+not_find:
+    shm_close(sb, &fd);
+    return -1;
 op_shm_err:
     fre = NULL;
     return -1;

@@ -19,8 +19,8 @@ static int make_shm_cached(char *name, char *ptr) {
     handle_error("malloc():");
     goto end;
   }
-  strncpy(cached, name, s_len);
-  strncpy(cached + s_len, "_cached", 7);
+  memcpy(cached, name, s_len);
+  memcpy(cached + s_len, "_cached", 7);
 
   int cfd = shm_open(cached, O_CREAT | O_RDWR, 0666);
   if (cfd == -1) {

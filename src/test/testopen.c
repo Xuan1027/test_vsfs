@@ -17,9 +17,10 @@ int main(int argc, char **argv)
     int ret = 0;
 
     for(int i=1;i<=limit;i++){
+        sleep(2);
         sprintf(fname, "%03d", i);
         fdtab[i] = vsfs_open("test", fname, O_RDWR);
-        printf("%d\n", fdtab[i]);
+        printf("get the fd is: %d\n", fdtab[i]);
         if(fdtab[i] < 0){
             printf("ERR!\n");
             return -1;
