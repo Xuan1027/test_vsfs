@@ -26,7 +26,8 @@ int main(int argc, char **argv)
             return -1;
         }
     }
-    for(int i=1;i<=limit;i++){
+
+    for(int i=limit;i>=1;i--){
         ret = vsfs_close(fdtab[i]);
         if(ret!=0){
             printf("ERR occur!\n");
@@ -34,6 +35,7 @@ int main(int argc, char **argv)
         }
     }
     free(fname);
+    free(fdtab);
 
     return 0;
 }

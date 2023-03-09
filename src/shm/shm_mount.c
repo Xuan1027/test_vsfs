@@ -14,13 +14,13 @@ static int make_shm_cached(char *name, char *ptr) {
 
   int ret = 0;
   int s_len = strlen(name);
-  char *cached = malloc(s_len + 7);
+  char *cached = malloc(s_len + 8);
   if (!cached) {
     handle_error("malloc():");
     goto end;
   }
   memcpy(cached, name, s_len);
-  memcpy(cached + s_len, "_cached", 7);
+  strncpy(cached + s_len, "_cached", 8);
 
   int cfd = shm_open(cached, O_CREAT | O_RDWR, 0666);
   if (cfd == -1) {
@@ -75,17 +75,29 @@ static int creat_open_file_table(){
   if(opfd < 0)
     return opfd;
 
-  if(ftruncate(opfd, VSFS_BLOCK_SIZE)==-1){
+  if(ftruncate(opfd, VSFS_OPTAB_SIZE + sizeof(unsigned short))==-1){
     close(opfd);
+    printf("ftruncate open table size ERR!\n");
     return -1;
   }
 
-  op_ftable_t* init = (op_ftable_t*)malloc(VSFS_BLOCK_SIZE);
-  memset(init, 0, VSFS_BLOCK_SIZE);
+  op_ftable_t* init = (op_ftable_t*)malloc(VSFS_OPTAB_SIZE);
+  memset(init, 0, VSFS_OPTAB_SIZE);
 
-  int ret = write(opfd, init, VSFS_BLOCK_SIZE);
-  if (ret != VSFS_BLOCK_SIZE) {
+  unsigned short count = 0;
+
+  int ret = write(opfd, &count, sizeof(unsigned short));
+  if(ret != sizeof(unsigned short)){
     free(init);
+    close(opfd);
+    printf("init the op_ftable entry counter ERR!\n");
+    return -1;
+  }
+  ret = write(opfd, init, VSFS_OPTAB_SIZE);
+  if (ret != VSFS_OPTAB_SIZE) {
+    free(init);
+    close(opfd);
+    printf("init the op_ftable entry ERR!\n");
     return -1;
   }
 

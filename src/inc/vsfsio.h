@@ -6,8 +6,8 @@
 #include "vsfs_shmfunc.h"
 #include "vsfs_bitmap.h"
 
-#define SHOW_PROC 1
-#define OP_LIMIT VSFS_BLOCK_SIZE/sizeof(op_ftable_t)
+#define SHOW_PROC 0
+#define OP_LIMIT VSFS_OPTAB_SIZE/sizeof(op_ftable_t)
 
 typedef struct path{
     uint16_t inode;
@@ -45,41 +45,43 @@ typedef struct file_stat
 // the process's file descriptor talbe
 struct fd_table_list* fd_table = NULL;
 
-unsigned short op_entry = 0;
-
-// static off_t vsfs_lseek(int fd, off_t offset, int whence);
-// static int vsfs_read(int fildes, void *buf, size_t nbyte);
-// static int vsfs_write(int fildes, const void *buf, size_t nbyte);
+static int vsfs_creat(char *shm_name, char *file_name) __attribute__((unused));
+static int vsfs_stat(char *shm_name, char *pathname, file_stat_t* fre) __attribute__((unused));
+static int vsfs_open(char *shm_name, char *pathname, int flags) __attribute__((unused));
+static int vsfs_close(int fildes) __attribute__((unused));
+static int vsfs_write(char *shm_name, int fildes, const void *buf, size_t nbyte) __attribute__((unused));
+static int vsfs_read(char *shm_name, int fildes, void *buf, size_t nbyte) __attribute__((unused));
+// static off_t vsfs_lseek(int fd, off_t offset, int whence) __attribute__((unused));
 
 /**
  * create a new file
  * \param shm_name the share memory name
  */
-int vsfs_creat(char *shm_name, char *file_name)
+static int vsfs_creat(char *shm_name, char *file_name)
 {
     if(SHOW_PROC)
         printf("vsfs_creat(): init the setting\n");
     if(strlen(file_name) >= VSFS_FILENAME_LEN){
         printf("the file_name's lens over the limit!\n");
-        goto shm_err_ext;
+        goto shm_err_exit;
     }
 
     int fd, fdc;
     char *name = (char *)malloc(VSFS_FILENAME_LEN);
-    char *shm_cache_name = (char *)malloc(strlen(shm_name) + 7);
+    char *shm_cache_name = (char *)malloc(strlen(shm_name) + 8);
 
     memcpy(shm_cache_name, shm_name, strlen(shm_name));
-    memcpy(shm_cache_name + strlen(shm_name), "_cached", 7);
+    strncpy(shm_cache_name + strlen(shm_name), "_cached", 8);
     // printf("shm_cached_name = <%s>\n", shm_cache_name);
 
-    memcpy(name, file_name, strlen(file_name));
+    strcpy(name, file_name);
 
     struct superblock *sb = (struct superblock *)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
     if (!sb)
-        goto shm_err_ext;
+        goto shm_err_exit;
     struct vsfs_cached_data *sb_cached = (struct vsfs_cached_data *)shm_oandm(shm_cache_name, O_RDWR, PROT_READ | PROT_WRITE, &fdc);
     if (!sb_cached)
-        goto sb_err_ext;
+        goto sb_err_exit;
     struct vsfs_inode *inode_reg = (struct vsfs_inode *)((char *)sb + sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
     struct vsfs_dir_block *data_reg = (struct vsfs_dir_block *)((char *)sb + sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
 
@@ -101,7 +103,7 @@ int vsfs_creat(char *shm_name, char *file_name)
         {
             printf("the / inode dentry bigger than 56 blocks, need to turn to level 2 pointer!\n");
             put_inode(sb_cached, f_inode);
-            goto sup_cached_err_ext;
+            goto sup_cached_err_exit;
         }
         f_dblock = get_free_dblock(sb_cached);
         // printf("get free dblock = %u\n", f_dblock);
@@ -147,16 +149,20 @@ int vsfs_creat(char *shm_name, char *file_name)
     free(shm_cache_name);
 
     return 0;
-sup_cached_err_ext:
+sup_cached_err_exit:
     shm_close(sb_cached, &fdc);
-sb_err_ext:
+sb_err_exit:
     shm_close(sb, &fd);
     free(shm_cache_name);
-shm_err_ext:
+shm_err_exit:
     return -1;
 }
 
-int vsfs_open(char *shm_name, char *pathname, int flags){
+/**
+ * open a file
+ * @return int for success, -1 for error
+*/
+static int vsfs_open(char *shm_name, char *pathname, int flags){
     /**
      * need to create a file descriptor table
      * the table need to point to the openfile table
@@ -169,7 +175,7 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
 
     if(strlen(pathname) >= VSFS_FILENAME_LEN){
         printf("ERR: the pathname's lens over the limit!\n");
-        goto wt_list_ext;
+        goto wt_list_exit;
     }
 
     /**
@@ -180,17 +186,22 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
     if(SHOW_PROC)
         printf("vsfs_open(): opening the shm\n");
     int opfd, fd;
-    op_ftable_t* op_ftable = (op_ftable_t*)shm_oandm("optab", O_RDWR, PROT_READ | PROT_WRITE, &opfd);
+    unsigned short* op_counter = (unsigned short*)shm_oandm("optab", O_RDWR, PROT_READ | PROT_WRITE, &opfd);
+    if(!op_counter){
+        printf("ERR: in vsfs_open(): open file table faild!\n");
+        goto wt_list_exit;
+    }
+    op_ftable_t* op_ftable = (op_ftable_t*)(op_counter+1);
     if(!op_ftable){
         printf("ERR: in vsfs_open(): open file table faild!\n");
-        goto wt_list_ext;
+        goto wt_list_exit;
     }
     // printf("in vsfs_open(): the open file table position is: %p\n", op_ftable);
     // TODO: find the pathname of the file
     struct superblock *sb = (struct superblock *)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
     if(!sb){
         printf("ERR: in vsfs_open(): open disk(memory) faild!\n");
-        goto sb_ext;
+        goto sb_exit;
     }
     struct vsfs_inode *inode_reg = (struct vsfs_inode *)((char *)sb + sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
     struct vsfs_dir_block *data_reg = (struct vsfs_dir_block *)((char *)sb + sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
@@ -276,11 +287,11 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
     }
 
     if(SHOW_PROC){
-        printf("printing the path of inode <%u>:\n", target_inode);
+        printf("vsfs_open(): printing the path of inode <%u>: ", target_inode);
         for(path_t* tmp=fd_table->tail->p_head;tmp;tmp=tmp->next){
-            printf("%u\n", tmp->inode);
+            printf("%u -> ", tmp->inode);
         }
-        printf("end of the printing\n");
+        printf("NULL\n");
     }
 
 
@@ -289,7 +300,7 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
     // find the inode in open file table
     // and set the fd_table ptr to open file table
     short optab_find = 0;
-    for(unsigned short i=0;i<op_entry;i++){
+    for(unsigned short i=0;i<(*op_counter);i++){
         if(op_ftable[i].inode_nr == target_inode){
             optab_find = 1;
             op_ftable[i].ptr_counter++;
@@ -297,19 +308,19 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
             break;
         }
     }
-    if(op_entry>=OP_LIMIT && !optab_find){
+    if((*op_counter)>=OP_LIMIT && !optab_find){
         printf("ERR: in vsfs_open(): open file table full, need to allocate a new block\n");
         ret = -1;
         goto free_fd_path;
     }
     if(!optab_find){
-        op_ftable[op_entry].inode_nr = target_inode;
-        op_ftable[op_entry].ptr_counter = 1;
-        op_ftable[op_entry].offset = 0;
-        op_ftable[op_entry].lock = 0;
-        fd_table->tail->ptr = &(op_ftable[op_entry]);
-        // printf("the pointer point to %p\n", &(op_ftable[op_entry]));
-        op_entry++;
+        op_ftable[(*op_counter)].inode_nr = target_inode;
+        op_ftable[(*op_counter)].ptr_counter = 1;
+        op_ftable[(*op_counter)].offset = 0;
+        op_ftable[(*op_counter)].lock = 0;
+        fd_table->tail->ptr = &(op_ftable[(*op_counter)]);
+        // printf("the pointer point to %p\n", &(op_ftable[(*op_counter)]));
+        (*op_counter)++;
     }
 
     if(SHOW_PROC)
@@ -329,7 +340,7 @@ int vsfs_open(char *shm_name, char *pathname, int flags){
     }
 
     shm_close(sb, &fd);
-    shm_close(op_ftable, &opfd);
+    shm_close(op_counter, &opfd);
 
     return ret;
 free_fd_path:
@@ -356,10 +367,10 @@ free_fd:
     free(fd_table);
 free_sb_ca:
     shm_close(sb, &fd);
-sb_ext:
-    shm_close(op_ftable, &opfd);
+sb_exit:
+    shm_close(op_counter, &opfd);
 
-wt_list_ext:
+wt_list_exit:
     return ret;
 }
 
@@ -367,7 +378,7 @@ wt_list_ext:
 /**
  * \return 0 for success, -1 for err
 */
-int vsfs_close(int fildes){
+static int vsfs_close(int fildes){
 
     if(SHOW_PROC)
         printf("vsfs_close(): checking all the table\n");
@@ -388,7 +399,12 @@ int vsfs_close(int fildes){
     */
 
     int opfd;
-    op_ftable_t* op_ftable = (op_ftable_t*)shm_oandm("optab", O_RDWR, PROT_READ | PROT_WRITE, &opfd);
+    unsigned short* op_counter = (unsigned short*)shm_oandm("optab", O_RDWR, PROT_READ | PROT_WRITE, &opfd);
+    if(!op_counter){
+        printf("ERR: in vsfs_open(): open file table faild!\n");
+        goto err_exit;
+    }
+    op_ftable_t* op_ftable = (op_ftable_t*)(op_counter+1);
     if(!op_ftable){
         printf("ERR: in vsfs_close(): open file table faild!\n");
         return -1;
@@ -405,7 +421,7 @@ int vsfs_close(int fildes){
         fd_table->head = fd_table->head->next;
     }
     else{
-        for(fd_table_t* tmp=fd_table->head;tmp->next;tmp=tmp->next){
+        for(fd_table_t* tmp=fd_table->head;tmp;tmp=tmp->next){
             if(tmp->next->index == fildes){
                 fd_find = 1;
                 fd_rm = tmp->next;
@@ -415,7 +431,7 @@ int vsfs_close(int fildes){
     }
     if(!fd_find){
         printf("ERR: in vsfs_close(): doesn't find the target!\n");
-        goto err_ext;
+        goto err_exit;
     }
 
     if(SHOW_PROC)
@@ -435,27 +451,27 @@ int vsfs_close(int fildes){
     // printf("the position of ptr_counter is: %p\n", fd_rm->ptr);
     if(fd_rm->ptr->ptr_counter == 0){
         printf("ERR: in vsfs_close(): the target's open file table counter is already 0\n");
-        goto err_ext;
+        goto err_exit;
     }
     fd_rm->ptr->ptr_counter--;
     if(!fd_rm->ptr->ptr_counter){
         // del the open file table and move the last one replace
-        if(op_entry <= 0){
-            printf("ERR: in vsfs_close(): the op_entry is small than 0\n");
-            goto err_ext;
+        if((*op_counter) <= 0){
+            printf("ERR: in vsfs_close(): the (*op_counter) is small than 0\n");
+            goto err_exit;
         }
-        else if(op_entry > 1){
+        else if((*op_counter) > 1){
             // untest this memcpy
-            memcpy(fd_rm->ptr, &(op_ftable[op_entry-1]), sizeof(op_ftable_t));
+            memcpy(fd_rm->ptr, &(op_ftable[(*op_counter)-1]), sizeof(op_ftable_t));
         }
-        op_entry--;
+        (*op_counter)--;
     }
 
     free(fd_rm);
-    shm_close(op_ftable, &opfd);
+    shm_close(op_counter, &opfd);
     return 0;
-err_ext:
-    shm_close(op_ftable, &opfd);
+err_exit:
+    shm_close(op_counter, &opfd);
     return -1;
 }
 
@@ -466,7 +482,7 @@ err_ext:
  * \param ret the status of an inode
  * \return 0 for success, -1 for error
 */
-int vsfs_stat(char *shm_name, char *pathname, file_stat_t* fre) {
+static int vsfs_stat(char *shm_name, char *pathname, file_stat_t* fre) {
 
     int fd;
     struct superblock *sb = (struct superblock *)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
@@ -489,6 +505,7 @@ int vsfs_stat(char *shm_name, char *pathname, file_stat_t* fre) {
     }
     if(!find){
         fre = NULL;
+        printf("vsfs_stat(): the filename not find in shm\n");
         goto not_find;
     }
     
@@ -550,6 +567,282 @@ not_find:
     return -1;
 op_shm_err:
     fre = NULL;
+    return -1;
+}
+
+/**
+ * writting data into disk
+ * @param shm_name shm for store data
+ * @param fildes fd about the file, use vsfs_open to get
+ * @param buf the data you want to write
+ * @param nbyte the len of your data
+ * @return int for success, -1 for err
+*/
+static int vsfs_write(char *shm_name, int fildes, const void *buf, size_t nbyte){
+    if(SHOW_PROC)
+        printf("vsfs_write(): opening the open file table\n");
+    int opfd, fdc, fd;
+    unsigned short* op_counter = (unsigned short*)shm_oandm("optab", O_RDWR, PROT_READ | PROT_WRITE, &opfd);
+    if(!op_counter){
+        printf("ERR: in vsfs_write(): open file table faild!\n");
+        goto shm_err_exit;
+    }
+    op_ftable_t* op_ftable = (op_ftable_t*)(op_counter+1);
+    if(!op_ftable){
+        printf("ERR: in vsfs_write(): open file table faild!\n");
+        goto shm_err_exit;
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_write(): finding the file\n");
+    // finding the fd in fd_table
+    short fd_find = 0;
+    op_ftable_t* target_op = NULL;
+    for(fd_table_t* tmp=fd_table->head;tmp;tmp=tmp->next){
+        if(tmp->index==fildes){
+            fd_find = 1;
+            target_op = tmp->ptr;
+        }
+    }
+    if(!fd_find){
+        printf("ERR: in vsfs_write(): not found the fd in fd_table\n");
+        goto op_exit;
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_write(): opening the disk(shm)\n");
+    struct superblock *sb = (struct superblock *)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
+    if(!sb){
+        printf("ERR: in vsfs_write(): open disk(memory) faild!\n");
+        goto op_exit;
+    }
+    struct vsfs_inode *inode_reg = (struct vsfs_inode *)((char *)sb + sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
+    struct vsfs_data_block *data_reg = (struct vsfs_data_block *)((char *)sb + sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
+
+    if(SHOW_PROC)
+        printf("vsfs_write(): opening the cached\n");
+    char *shm_cache_name = (char *)malloc(strlen(shm_name) + 8);
+
+    memcpy(shm_cache_name, shm_name, strlen(shm_name));
+    strncpy(shm_cache_name + strlen(shm_name), "_cached", 8);
+    struct vsfs_cached_data *sb_cached = (struct vsfs_cached_data *)shm_oandm(shm_cache_name, O_RDWR, PROT_READ | PROT_WRITE, &fdc);
+    if (!sb_cached){
+        printf("ERR: in vsfs_write(): cannot open the vsfa_cached\n");
+        goto sb_exit;
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_write(): checking if the size in target inode is able to write\n");
+    // order for another block to store data
+    if(inode_reg[target_op->inode_nr].blocks*VSFS_BLOCK_SIZE < target_op->offset + nbyte){
+        int need_alloc = (target_op->offset + nbyte)/VSFS_BLOCK_SIZE - inode_reg[target_op->inode_nr].blocks;
+        if((target_op->offset + nbyte)%VSFS_BLOCK_SIZE)
+            need_alloc++;
+        for(int i=0;i<need_alloc;i++){
+            if(inode_reg[target_op->inode_nr].blocks>=56){
+                printf("ERR: vsfs_write(): the data block have 56 pointer already, need level 2 pointer\n");
+                goto err_exit;
+            }
+            uint32_t dblock = get_free_dblock(sb_cached);
+            inode_reg[target_op->inode_nr].block[inode_reg[target_op->inode_nr].blocks] = dblock;
+            inode_reg[target_op->inode_nr].blocks++;
+        }
+    }
+
+    // put the over data block back to free
+    if((target_op->offset+nbyte)/VSFS_BLOCK_SIZE+1 < inode_reg[target_op->inode_nr].blocks){
+        int need_return = inode_reg[target_op->inode_nr].blocks-(target_op->offset+nbyte)/VSFS_BLOCK_SIZE-1;
+        for(int i=0;i<need_return;i++){
+            inode_reg[target_op->inode_nr].blocks--;
+            put_dblock(sb_cached,inode_reg[target_op->inode_nr].block[inode_reg[target_op->inode_nr].blocks]);
+        }
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_write(): modify the inode of a,mtime\n");
+    time_t now;
+    time(&now);
+    inode_reg[target_op->inode_nr].atime = now;
+    inode_reg[target_op->inode_nr].mtime = now;
+
+    if(SHOW_PROC)
+        printf("vsfs_write(): starting to write the file\n");
+    const char* cbuf = buf;
+    unsigned short start_block = inode_reg[target_op->inode_nr].block[target_op->offset/VSFS_BLOCK_SIZE];
+    unsigned short end_block = inode_reg[target_op->inode_nr].block[(target_op->offset + nbyte)/VSFS_BLOCK_SIZE];
+    uint32_t start_offset = target_op->offset%VSFS_BLOCK_SIZE;
+    if(!((target_op->offset + nbyte)%VSFS_BLOCK_SIZE))
+        end_block = inode_reg[target_op->inode_nr].block[(target_op->offset + nbyte-1)/VSFS_BLOCK_SIZE];
+
+    if(SHOW_PROC){
+        printf("vsfs_write(): writing to the first block\n");
+        printf("vsfs_write(): printing the inside value\n");
+        printf("\tnbyte = %ld\n"
+        "\tstart_block = %u\n"
+        "\tend_block = %u\n"
+        "\tstart_offset = %u\n",
+        nbyte,start_block,end_block,start_offset
+        );
+    }
+
+    // writting size less than one block
+    if(start_block == end_block){
+        memcpy((char*)(data_reg[start_block].data) + start_offset, cbuf, nbyte);
+        goto written;
+    }
+    else{
+        // writing the first block
+        memcpy((char*)(data_reg[start_block].data) + start_offset, cbuf, VSFS_BLOCK_SIZE - start_offset);
+    }
+
+    uint32_t buf_offset = VSFS_BLOCK_SIZE - start_offset;
+    if(SHOW_PROC){
+        printf("vsfs_write(): writing to middle block\n");
+        printf("\tbuf_offset = %u\n", buf_offset);
+    }
+    // writting size bigger than one block
+    for(unsigned short start=start_block+1;start<end_block;start++){
+        memcpy(data_reg[start].data, &cbuf[buf_offset], VSFS_BLOCK_SIZE);
+        buf_offset+=VSFS_BLOCK_SIZE;
+    }
+
+    if(SHOW_PROC){
+        printf("vsfs_write(): writing to the last block\n");
+        printf("\tbuf_offset = %u\n", buf_offset);
+    }
+    // writting the last block
+    memcpy(data_reg[end_block].data, &cbuf[buf_offset], nbyte-buf_offset);
+written:
+    inode_reg[target_op->inode_nr].size = target_op->offset + nbyte;
+    target_op->offset += nbyte;
+
+    shm_close(sb_cached, &fdc);
+    shm_close(sb, &fd);
+    shm_close(op_counter, &opfd);
+    return nbyte;
+
+err_exit:
+    shm_close(sb_cached, &fdc);
+sb_exit:
+    shm_close(sb, &fd);
+op_exit:
+    shm_close(op_counter, &opfd);
+shm_err_exit:
+    return -1;
+}
+
+/**
+ * reading data from disk
+ * @param shm_name shm for store data
+ * @param fildes fd about the file, use vsfs_open to get
+ * @param buf the data will be place after read
+ * @param nbyte the len of data you want to read
+ * @return int for success, -1 for err
+*/
+static int vsfs_read(char *shm_name, int fildes, void *buf, size_t nbyte){
+    if(SHOW_PROC)
+        printf("vsfs_read(): opening the open file table\n");
+    int opfd, fd;
+    unsigned short* op_counter = (unsigned short*)shm_oandm("optab", O_RDWR, PROT_READ | PROT_WRITE, &opfd);
+    if(!op_counter){
+        printf("ERR: in vsfs_read(): open file table faild!\n");
+        goto shm_err_exit;
+    }
+    op_ftable_t* op_ftable = (op_ftable_t*)(op_counter+1);
+    if(!op_ftable){
+        printf("ERR: in vsfs_read(): open file table faild!\n");
+        goto shm_err_exit;
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_read(): finding the file\n");
+    // finding the fd in fd_table
+    short fd_find = 0;
+    op_ftable_t* target_op = NULL;
+    for(fd_table_t* tmp=fd_table->head;tmp;tmp=tmp->next){
+        if(tmp->index==fildes){
+            fd_find = 1;
+            target_op = tmp->ptr;
+        }
+    }
+    if(!fd_find){
+        printf("ERR: in vsfs_read(): not found the fd in fd_table\n");
+        goto op_exit;
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_read(): opening the disk(shm)\n");
+    struct superblock *sb = (struct superblock *)shm_oandm(shm_name, O_RDWR, PROT_READ | PROT_WRITE, &fd);
+    if(!sb){
+        printf("ERR: in vsfs_read(): open disk(memory) faild!\n");
+        goto op_exit;
+    }
+    struct vsfs_inode *inode_reg = (struct vsfs_inode *)((char *)sb + sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
+    struct vsfs_data_block *data_reg = (struct vsfs_data_block *)((char *)sb + sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
+
+    if(target_op->offset+nbyte > inode_reg[target_op->inode_nr].size){
+        printf("ERR: in vsfs_read(): read over the size of the file\n");
+        goto sb_exit;
+    }
+
+    if(SHOW_PROC)
+        printf("vsfs_read(): starting to read the file\n");
+    char* cbuf = buf;
+    unsigned short start_block = inode_reg[target_op->inode_nr].block[target_op->offset/VSFS_BLOCK_SIZE];
+    unsigned short end_block = inode_reg[target_op->inode_nr].block[(target_op->offset + nbyte)/VSFS_BLOCK_SIZE];
+    uint32_t start_offset = target_op->offset%VSFS_BLOCK_SIZE;
+    if(!((target_op->offset + nbyte)%VSFS_BLOCK_SIZE))
+        end_block = inode_reg[target_op->inode_nr].block[(target_op->offset + nbyte-1)/VSFS_BLOCK_SIZE];
+
+    if(SHOW_PROC){
+        printf("vsfs_read(): reading the first block\n");
+        printf("vsfs_read(): printing the inside value\n");
+        printf("\tnbyte = %ld\n"
+        "\tstart_block = %u\n"
+        "\tend_block = %u\n"
+        "\tstart_offset = %u\n",
+        nbyte,start_block,end_block,start_offset
+        );
+    }
+
+    // reading less than one block
+    if(start_block == end_block){
+        memcpy(cbuf, (char*)(data_reg[start_block].data) + start_offset, nbyte);
+        goto read_end;
+    }
+    else{
+        // reading the first block
+        memcpy(cbuf, (char*)(data_reg[start_block].data) + start_offset, VSFS_BLOCK_SIZE - start_offset);
+    }
+
+    uint32_t buf_offset = VSFS_BLOCK_SIZE - start_offset;
+    if(SHOW_PROC){
+        printf("vsfs_read(): writing to middle block\n");
+        printf("\tbuf_offset = %u\n", buf_offset);
+    }
+    // reading size bigger than one block
+    for(unsigned short start=start_block+1;start<end_block;start++){
+        memcpy(cbuf+buf_offset, data_reg[start].data, VSFS_BLOCK_SIZE);
+        buf_offset+=VSFS_BLOCK_SIZE;
+    }
+
+    if(SHOW_PROC){
+        printf("vsfs_read(): writing to the last block\n");
+        printf("\tbuf_offset = %u\n", buf_offset);
+    }
+    // reading the last block
+    memcpy(&cbuf[buf_offset], data_reg[end_block].data, nbyte-buf_offset);
+
+read_end:
+    shm_close(sb, &fd);
+    shm_close(op_counter, &opfd);
+    return nbyte;
+
+sb_exit:
+    shm_close(sb, &fd);
+op_exit:
+    shm_close(op_counter, &opfd);
+shm_err_exit:
     return -1;
 }
 

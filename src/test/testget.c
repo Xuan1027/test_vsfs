@@ -2,29 +2,35 @@
 #include "vsfsio.h"
 #include "vsfs_stdinc.h"
 #include "vsfs_bitmap.h"
-#include "vsfs_shmfunc.h"
 
 int main(int argc, char** argv){
-    if (argc != 3) {
+    if (argc != 2) {
         printf("bad arg num\n");
         exit(EXIT_FAILURE);
     }
     file_stat_t* re = (file_stat_t*)malloc(sizeof(file_stat_t));
-    int ret = vsfs_stat(argv[1], argv[2], re);
+    char* fname = (char*)malloc(VSFS_FILENAME_LEN);
+    int ret;
 
-    if(ret != 0){
-        printf("err!\n");
-        return -1;
+    int limit = atoi(argv[1]);
+    for(int i=1;i<=limit;i++){
+        sprintf(fname, "%03d", i);
+        ret = vsfs_stat("test", fname, re);
+        if(ret != 0){
+            printf("err!\n");
+            return -1;
+        }
+        printf("inode of <%s>:\n"
+                "\tmode = %s\n"
+                "\tsize = %d\n"
+                "\tblocks = %d\n"
+                "\tctime = %s"
+                "\tatime = %s"
+                "\tmtime = %s",
+                fname, re->mode, re->size, re->blocks, re->ctime, re->atime, re->mtime);
     }
-    printf("inode of <%s>:\n"
-            "\tmode = %s\n"
-            "\tsize = %d\n"
-            "\tblocks = %d\n"
-            "\tctime = %s"
-            "\tatime = %s"
-            "\tmtime = %s",
-            argv[2], re->mode, re->size, re->blocks, re->ctime, re->atime, re->mtime);
 
+    free(fname);
     free(re);
 
     return 0;

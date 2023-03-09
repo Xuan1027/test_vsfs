@@ -20,6 +20,9 @@
 #define VSFS_FILES_PER_BLOCK \
   (VSFS_BLOCK_SIZE / sizeof(struct vsfs_file_entry))
 
+/* define the open table size */
+#define VSFS_OPTAB_SIZE VSFS_BLOCK_SIZE
+
 /*
  * vsfs partition layout
  * +---------------+
@@ -91,6 +94,10 @@ struct vsfs_file_entry {
 
 struct vsfs_dir_block {
   struct vsfs_file_entry files[VSFS_FILES_PER_BLOCK];
+};
+
+struct vsfs_data_block {
+  char data[VSFS_BLOCK_SIZE];
 };
 
 typedef struct op_file_table_entry {

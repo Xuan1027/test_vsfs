@@ -4,16 +4,16 @@ CC := gcc
 VSFS_ROOT := $(CURDIR)
 VSFS_SRCDIR := $(VSFS_ROOT)/src
 VSFS_OBJDIR := $(VSFS_ROOT)/obj
-VSFS_INCDIR := $(VSFS_ROOT)/src/inc
 VSFS_EXEDIR := $(VSFS_ROOT)/compile
+VSFS_INCDIR := $(VSFS_SRCDIR)/inc
+VSFS_SHMDIR := $(VSFS_SRCDIR)/shm
 VSFS_TESDIR := $(VSFS_SRCDIR)/test
 
 CFLAGS += -Wall -O2 -march=native -finline-functions -g
 LDFLAGS = -I$(VSFS_INCDIR)
 SYS_LIBS = -lrt -lpthread
 
-tar := $(patsubst %.c,%,$(notdir $(wildcard $(VSFS_SRCDIR)/*.c)))
-tar += $(patsubst %.c,%,$(notdir $(wildcard $(VSFS_TESDIR)/*.c)))
+tar := $(patsubst %.c,%,$(notdir $(wildcard $(VSFS_SRCDIR)/*/*.c)))
 EXEC = $(tar:%=$(VSFS_EXEDIR)/%)
 
 # EXT = .c
@@ -27,7 +27,7 @@ EXEC = $(tar:%=$(VSFS_EXEDIR)/%)
 all : $(EXEC)
 
 clean :
-	$(Q)$(VSFS_EXEDIR)/shm_unlink test;\
+	-$(Q)$(VSFS_EXEDIR)/shm_unlink test;\
 	$(CLEAN_C)
 
 setup :
@@ -35,7 +35,7 @@ setup :
 	$(VSFS_EXEDIR)/shm_mount test
 	$(VSFS_EXEDIR)/testinode test
 
-$(VSFS_OBJDIR)/%.o : $(VSFS_SRCDIR)/%.c $(VSFS_INCDIR)/*.h
+$(VSFS_OBJDIR)/%.o : $(VSFS_SHMDIR)/%.c $(VSFS_INCDIR)/*.h
 	$(Q)echo "  CC $(notdir $@)";\
 	mkdir -p obj;\
 	$(CC) $(LDFLAGS) -c $< $(CFLAGS) -o $@
