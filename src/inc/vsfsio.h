@@ -59,8 +59,8 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte)
     __attribute__((unused));
 static int vsfs_read(int fildes, void *buf, size_t nbyte)
     __attribute__((unused));
-// static off_t vsfs_lseek(int fd, off_t offset, int whence)
-// __attribute__((unused));
+static off_t vsfs_lseek(int fd, off_t offset, int whence)
+    __attribute__((unused));
 
 /**
  * create a new file
@@ -1041,11 +1041,6 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte) {
       (struct vsfs_data_block *)((char *)sb +
                                  sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
 
-  if (target_op->offset + nbyte > inode_reg[target_op->inode_nr].size) {
-    printf("ERR: in vsfs_read(): read over the size of the file\n");
-    goto err_exit;
-  }
-
   if (SHOW_PROC)
     printf("vsfs_read(): starting to read the file\n");
 
@@ -1064,7 +1059,16 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte) {
   uint16_t start_block_l1 = target_op->offset / VSFS_BLOCK_SIZE;
   uint32_t offset = target_op->offset % VSFS_BLOCK_SIZE;
 
-  size_t left = nbyte;
+  size_t left = 0;
+  size_t padded = 0;
+  if(inode_reg[target_op->inode_nr].size > target_op->offset + nbyte)
+    left = nbyte;
+  else if(inode_reg[target_op->inode_nr].size > target_op->offset){
+    left = inode_reg[target_op->inode_nr].size - target_op->offset;
+    padded = nbyte - left;
+  }
+  else if(inode_reg[target_op->inode_nr].size == target_op->offset)
+    goto err_exit;
   size_t readed = 0;
   size_t read_length = 0;
 
@@ -1158,7 +1162,80 @@ read_level_3:
 
 readed:
 
+  memset((char *)buf + readed, '\0', padded);
+
   return nbyte;
+
+err_exit:
+  return -1;
+}
+
+static off_t vsfs_lseek(int fd, off_t offset, int whence) {
+  if (SHOW_PROC)
+    printf("vsfs_lseek(): checking the init\n");
+  if (!op_counter) {
+    printf("ERR: in vsfs_lseek(): you need to open the file first!\n");
+    goto err_exit;
+  }
+  op_ftable_t *op_ftable = (op_ftable_t *)(op_counter + 1);
+  if (!op_ftable) {
+    printf("ERR: in vsfs_lseek(): open file table faild!\n");
+    goto err_exit;
+  }
+
+  struct vsfs_inode *inode_reg =
+      (struct vsfs_inode *)((char *)sb +
+                            sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
+
+  if (SHOW_PROC)
+    printf("vsfs_lseek(): finding the file\n");
+  // finding the fd in fd_table
+  short fd_find = 0;
+  op_ftable_t *target_op = NULL;
+  for (fd_table_t *tmp = fd_table->head; tmp; tmp = tmp->next) {
+    if (tmp->index == fd) {
+      fd_find = 1;
+      target_op = tmp->ptr;
+    }
+  }
+  if (!fd_find) {
+    printf("ERR: in vsfs_lseek(): not found the fd in fd_table\n");
+    goto err_exit;
+  }
+
+  off_t ret;
+  switch (whence) {
+    case SEEK_SET:
+      if (offset > inode_reg[target_op->inode_nr].blocks * VSFS_BLOCK_SIZE) {
+        printf("ERR: in vsfs_lseek(): setting offset over the file size\n");
+        goto err_exit;
+      }
+      if(offset < 0){
+        printf("ERR: in vsfs_lseek(): setting offset less than 0\n");
+        goto err_exit;
+      }
+      ret = target_op->offset = offset;
+      break;
+    case SEEK_END:
+      target_op->offset = inode_reg[target_op->inode_nr].size;
+    case SEEK_CUR:
+      if (target_op->offset + offset >
+          inode_reg[target_op->inode_nr].blocks * VSFS_BLOCK_SIZE) {
+        printf("ERR: in vsfs_lseek(): setting offset over the file size\n");
+        goto err_exit;
+      }
+      if (target_op->offset + offset < 0){
+        printf("ERR: in vsfs_lseek(): setting offset less than 0\n");
+        goto err_exit;
+      }
+      ret = target_op->offset += offset;
+      break;
+    default:
+      printf("ERR: in vsfs_lseek(): not know where to set the offset\n");
+      goto err_exit;
+  }
+
+  return ret;
 
 err_exit:
   return -1;
