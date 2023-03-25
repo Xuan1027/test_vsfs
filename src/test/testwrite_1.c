@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
     }
     ret = fscanf(fp, "\n");
   }
-  // vsfs_print_block_nbr(fd);
+  vsfs_print_block_nbr(fd);
   ret = vsfs_close(fd);
   if (ret == -1) {
     printf("ERR at close file\n");

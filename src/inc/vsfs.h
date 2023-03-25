@@ -9,7 +9,7 @@
 #define VSFS_SB_BLOCK_NR 0
 /* 4KiB */
 #define VSFS_BLOCK_SIZE (1 << 12)
-#define VSFS_MAX_LEVEL1_ENTRY 50
+#define VSFS_MAX_LEVEL1_ENTRY 49
 #define VSFS_MAX_LEVEL2_ENTRY (5 << 10)
 #define VSFS_MAX_LEVEL3_ENTRY \
   ((1 << 20) - VSFS_MAX_LEVEL1_ENTRY - VSFS_MAX_LEVEL2_ENTRY)
@@ -22,10 +22,10 @@
 
 /* define the open table size */
 #define VSFS_OPTAB_SIZE VSFS_BLOCK_SIZE
-#define VSFS_POINTER_PER_BLOCK VSFS_BLOCK_SIZE / sizeof(int)
-#define VSFS_LEVEL1_PTR 50
+#define VSFS_POINTER_PER_BLOCK (VSFS_BLOCK_SIZE / sizeof(int))
+#define VSFS_LEVEL1_PTR 49
 #define VSFS_LEVEL2_PTR 5 * VSFS_POINTER_PER_BLOCK
-#define VSFS_LEVEL3_PTR VSFS_POINTER_PER_BLOCK* VSFS_POINTER_PER_BLOCK
+#define VSFS_LEVEL3_PTR VSFS_POINTER_PER_BLOCK * VSFS_POINTER_PER_BLOCK
 #define VSFS_LEVEL1_LIMIT VSFS_LEVEL1_PTR
 #define VSFS_LEVEL2_LIMIT VSFS_LEVEL1_PTR + VSFS_LEVEL2_PTR
 #define VSFS_LEVEL3_LIMIT VSFS_LEVEL1_PTR + VSFS_LEVEL2_PTR + VSFS_LEVEL3_PTR
@@ -71,18 +71,18 @@ struct superblock {
 };
 
 struct vsfs_inode {
-    uint16_t mode;   /* File mode -> drwx */
-    uint16_t blocks; /* Total number of data blocks count */
+    uint32_t mode;   /* File mode -> drwx */
+    uint32_t blocks; /* Total number of data blocks count */
     union {
         uint32_t size; /* File: size in byte || Dir: entry num */
         uint32_t entry;
     };
+    unsigned int l1[49];
+    unsigned int l2[5];
+    unsigned int l3[1];
     time_t atime; /* Access time */
     time_t ctime; /* Inode change time */
     time_t mtime; /* Modification time */
-    unsigned int l1[50];
-    unsigned int l2[5];
-    unsigned int l3[1];
 };
 
 struct vsfs_file_entry {

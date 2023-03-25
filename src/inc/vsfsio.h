@@ -8,7 +8,7 @@
 
 #define SHM_NAME "vsfs"
 #define SHM_CACHE_NAME "vsfs_cached"
-#define SHOW_PROC 0
+#define SHOW_PROC 1
 #define OP_LIMIT VSFS_OPTAB_SIZE / sizeof(op_ftable_t)
 
 typedef struct path {
@@ -115,14 +115,14 @@ static int vsfs_creat(char *file_name) {
   if (tmp_inode_reg->entry < tmp_inode_reg->blocks * 16)
     goto adding_entry;
   // printf("added new entry faild, adding a new block for / dir\n");
-  if (tmp_inode_reg->blocks < 50)
+  if (tmp_inode_reg->blocks < 49)
     goto adding_level1_block;
   printf(
-      "the / inode dentry bigger than 50 blocks, need to turn to level 2 "
+      "the / inode dentry bigger than 49 blocks, need to turn to level 2 "
       "pointer!\n");
-  // 0~49 level 1
-  // 50~54 level 2
-  // 55 level 3
+  // 0~48 level 1
+  // 49~53 level 2
+  // 54 level 3
   if (SHOW_PROC)
     printf("vsfs_creat(): turning to level 2 pointer\n");
 
@@ -645,7 +645,7 @@ void vsfs_print_block_nbr(int fildes) {
   uint32_t blks = inode_reg[target_op->inode_nr].blocks;
 
   printf("level 1:\n");
-  for (int i = 0; i < inode_reg[target_op->inode_nr].blocks && i < 50;
+  for (int i = 0; i < inode_reg[target_op->inode_nr].blocks && i < 49;
        i++, blks--) {
     printf("%u ", inode_reg[target_op->inode_nr].l1[i]);
   }
@@ -656,6 +656,20 @@ void vsfs_print_block_nbr(int fildes) {
     printf("level 2[%d]:\n", i);
     ptr_reg = (struct vsfs_pointer_block *)(&(
         data_reg[inode_reg[target_op->inode_nr].l2[i]]));
+    for (int j = 0; j < 1024 && blks > 0; j++, blks--)
+      printf("%u ", ptr_reg->__pointer[j]);
+    printf("\n");
+  }
+
+  printf("\n");
+  struct vsfs_pointer_block *l3_ptr_reg;
+  l3_ptr_reg = (struct vsfs_pointer_block *)&(
+      data_reg[inode_reg[target_op->inode_nr].l3[0]]);
+  printf("level 3[0]:\n");
+  for (int i = 0; blks > 0 && i < 1024; i++) {
+    printf("level 2[%d]:\n", i);
+    ptr_reg = (struct vsfs_pointer_block *)(&(
+        data_reg[l3_ptr_reg->__pointer[i]]));
     for (int j = 0; j < 1024 && blks > 0; j++, blks--)
       printf("%u ", ptr_reg->__pointer[j]);
     printf("\n");
@@ -741,12 +755,13 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
       (target_op->offset + nbyte) / VSFS_BLOCK_SIZE)
     goto check_for_over_datablock;
 
-  unsigned total_needed_blocks = (target_op->offset + nbyte) / VSFS_BLOCK_SIZE -
+  uint32_t total_needed_blocks = (target_op->offset + nbyte) / 4096 -
                                  inode_reg[target_op->inode_nr].blocks;
   if ((target_op->offset + nbyte) % VSFS_BLOCK_SIZE)
     total_needed_blocks++;
-  unsigned count_down = total_needed_blocks;
-  unsigned short real_blocks = inode_reg[target_op->inode_nr].blocks;
+
+  uint32_t count_down = total_needed_blocks;
+  uint32_t real_blocks = inode_reg[target_op->inode_nr].blocks;
   unsigned short start_block_l1 = 0;
   unsigned short start_block_l2 = 0;
 
@@ -802,8 +817,8 @@ level2:
   struct vsfs_pointer_block *ptr_reg;
   for (uint16_t i = start_block_l2; i < 5 && count_down > 0; i++) {
     if (start_block_l1 == 0) {
-      uint32_t l1_dblock = get_free_dblock(sb_cached);
-      inode_reg[target_op->inode_nr].l2[i] = l1_dblock;
+      uint32_t l2_dblock = get_free_dblock(sb_cached);
+      inode_reg[target_op->inode_nr].l2[i] = l2_dblock;
     }
     ptr_reg = (struct vsfs_pointer_block *)&(
         data_reg[inode_reg[target_op->inode_nr].l2[i]]);
@@ -819,6 +834,49 @@ level2:
   if (!count_down)
     goto check_for_over_datablock;
 level3:
+
+  real_blocks = inode_reg[target_op->inode_nr].blocks;
+  real_blocks -= VSFS_LEVEL2_LIMIT;
+  start_block_l1 = real_blocks % 1024;
+  start_block_l2 = real_blocks / 1024;
+  printf(
+      "the level 3 inside flags is:\n"
+      "\ttarget_op->offset = %u\n"
+      "\ttotal blocks = %u\n"
+      "\treal_blocks = %u\n"
+      "\ttart_block_l2 = %u\n"
+      "\ttart_block_l1 = %u\n"
+      "\ttotal_needed_blocks = %u\n"
+      "\tcount_down = %u\n\n",
+      target_op->offset, inode_reg[target_op->inode_nr].blocks, real_blocks,
+      start_block_l2, start_block_l1, total_needed_blocks, count_down);
+
+  if(real_blocks == 0){
+    uint32_t new_dblock = get_free_dblock(sb_cached);
+    inode_reg[target_op->inode_nr].l3[0] = new_dblock;
+    printf("new_dblock = %d\n", new_dblock);
+  }
+
+  struct vsfs_pointer_block *l3_ptr_reg;
+  l3_ptr_reg = (struct vsfs_pointer_block *)&(
+      data_reg[inode_reg[target_op->inode_nr].l3[0]]);
+  for (uint16_t i = start_block_l2; i < 1024 && count_down > 0; i++) {
+    if (start_block_l1 == 0) {
+      uint32_t l2_dblock = get_free_dblock(sb_cached);
+      printf("l2_dblock = %d\n", l2_dblock);
+      l3_ptr_reg->__pointer[i] = l2_dblock;
+    }
+    ptr_reg =
+        (struct vsfs_pointer_block *)&(data_reg[l3_ptr_reg->__pointer[i]]);
+    for (uint16_t j = start_block_l1;
+         j < VSFS_POINTER_PER_BLOCK && count_down > 0; j++, count_down--) {
+      uint32_t new_dblock = get_free_dblock(sb_cached);
+      printf("new_dblock = %d\n", new_dblock);
+      ptr_reg->__pointer[j] = new_dblock;
+      inode_reg[target_op->inode_nr].blocks++;
+    }
+    start_block_l1 = 0;
+  }
 
 check_for_over_datablock:
   if (SHOW_PROC)
@@ -837,6 +895,35 @@ check_for_over_datablock:
     goto re_level1;
   if (inode_reg[target_op->inode_nr].blocks <= VSFS_LEVEL2_LIMIT)
     goto re_level2;
+
+  if (SHOW_PROC)
+    printf("vsfs_write(): returning level 3 pointer\n");
+  real_blocks = inode_reg[target_op->inode_nr].blocks - 1;
+  real_blocks -= VSFS_LEVEL2_LIMIT;
+  start_block_l1 = real_blocks % 1024;
+  start_block_l2 = real_blocks / 1024;
+
+  l3_ptr_reg = (struct vsfs_pointer_block *)&(
+      data_reg[inode_reg[target_op->inode_nr].l3[0]]);
+  for (int i = start_block_l2; i >= 0 && need_return > 0; i--) {
+    ptr_reg =
+        (struct vsfs_pointer_block *)(&(data_reg[l3_ptr_reg->__pointer[i]]));
+    for (int j = start_block_l1; j >= 0 && need_return > 0;
+         j--, need_return--) {
+      put_dblock(sb_cached, ptr_reg->__pointer[j]);
+      inode_reg[target_op->inode_nr].blocks--;
+      if (j == 0) {
+        put_dblock(sb_cached, inode_reg[target_op->inode_nr].l2[i]);
+      }
+      if (j == 0 && i == 0) {
+        put_dblock(sb_cached, inode_reg[target_op->inode_nr].l3[0]);
+      }
+    }
+    start_block_l1 = (unsigned short)1023;
+  }
+
+  if (!need_return)
+    goto start_write;
 
 re_level2:
   if (SHOW_PROC)
@@ -882,9 +969,6 @@ start_write:
   if (SHOW_PROC)
     printf("vsfs_write(): starting to write the file\n");
 
-  if (SHOW_PROC)
-    printf("vsfs_write(): writting in level 1\n");
-
   start_block_l1 = target_op->offset / VSFS_BLOCK_SIZE;
   uint32_t offset = target_op->offset % VSFS_BLOCK_SIZE;
 
@@ -897,6 +981,8 @@ start_write:
   if (start_block_l1 >= VSFS_LEVEL1_LIMIT)
     goto write_level_2;
 
+  if (SHOW_PROC)
+    printf("vsfs_write(): writting in level 1\n");
   for (uint16_t i = start_block_l1; i < VSFS_LEVEL1_LIMIT && left > 0; i++) {
     if (left >= VSFS_BLOCK_SIZE - offset)
       write_length = VSFS_BLOCK_SIZE - offset;
@@ -975,6 +1061,52 @@ write_level_2:
     goto written;
 
 write_level_3:
+  if (SHOW_PROC)
+    printf("vsfs_write(): writting in level 3\n");
+
+  real_blocks = target_op->offset / VSFS_BLOCK_SIZE - 5169;
+  offset = target_op->offset % VSFS_BLOCK_SIZE;
+  start_block_l1 = real_blocks % VSFS_POINTER_PER_BLOCK;
+  start_block_l2 = real_blocks / VSFS_POINTER_PER_BLOCK;
+
+  l3_ptr_reg = (struct vsfs_pointer_block *)&(
+      data_reg[inode_reg[target_op->inode_nr].l3[0]]);
+  for (uint16_t i = start_block_l2; i < VSFS_POINTER_PER_BLOCK && left > 0;
+       i++) {
+    ptr_reg =
+        (struct vsfs_pointer_block *)(&(data_reg[l3_ptr_reg->__pointer[i]]));
+    for (uint16_t j = start_block_l1; j < VSFS_POINTER_PER_BLOCK && left > 0;
+         j++) {
+      if (left >= VSFS_BLOCK_SIZE - offset)
+        write_length = VSFS_BLOCK_SIZE - offset;
+      else
+        write_length = left;
+
+      if (SHOW_PROC)
+        printf(
+            "the level 3 inside value:\n"
+            "\ttarget_op->offset = %u\n"
+            "\treal_blocks = %u\n"
+            "\tl1 = %u\n"
+            "\tl2 = %u\n"
+            "\toffset = %u\n"
+            "\tnbyte = %lu\n"
+            "\tleft = %lu\n"
+            "\twritten = %lu\n"
+            "\twrite_length = %lu\n"
+            "\tdata_reg = %u\n",
+            target_op->offset, real_blocks, j, i, offset, nbyte, left, written,
+            write_length, ptr_reg->__pointer[j]);
+
+      memcpy((char *)(data_reg[ptr_reg->__pointer[j]].data) + offset,
+             (char *)buf + written, write_length);
+      written += write_length;
+      left -= write_length;
+      offset = 0;
+      target_op->offset += write_length;
+    }
+    start_block_l1 = 0;
+  }
 
 written:
   inode_reg[target_op->inode_nr].size = target_op->offset;
@@ -1053,21 +1185,18 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte) {
   if (SHOW_PROC)
     printf("vsfs_read(): starting to read the file\n");
 
-  if (SHOW_PROC)
-    printf("vsfs_read(): reading in level 1\n");
 
   uint16_t start_block_l1 = target_op->offset / VSFS_BLOCK_SIZE;
   uint32_t offset = target_op->offset % VSFS_BLOCK_SIZE;
 
   size_t left = 0;
   size_t padded = 0;
-  if(inode_reg[target_op->inode_nr].size > target_op->offset + nbyte)
+  if (inode_reg[target_op->inode_nr].size > target_op->offset + nbyte)
     left = nbyte;
-  else if(inode_reg[target_op->inode_nr].size > target_op->offset){
+  else if (inode_reg[target_op->inode_nr].size > target_op->offset) {
     left = inode_reg[target_op->inode_nr].size - target_op->offset;
     padded = nbyte - left;
-  }
-  else if(inode_reg[target_op->inode_nr].size == target_op->offset)
+  } else if (inode_reg[target_op->inode_nr].size == target_op->offset)
     goto err_exit;
   size_t readed = 0;
   size_t read_length = 0;
@@ -1077,6 +1206,8 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte) {
   if (start_block_l1 >= VSFS_LEVEL1_LIMIT)
     goto read_level_2;
 
+  if (SHOW_PROC)
+    printf("vsfs_read(): reading in level 1\n");
   for (uint16_t i = start_block_l1; i < VSFS_LEVEL1_LIMIT && left > 0; i++) {
     if (left >= VSFS_BLOCK_SIZE - offset)
       read_length = VSFS_BLOCK_SIZE - offset;
@@ -1159,6 +1290,53 @@ read_level_2:
     goto readed;
 
 read_level_3:
+  if (SHOW_PROC)
+    printf("vsfs_write(): reading in level 3\n");
+
+  real_blocks = target_op->offset / VSFS_BLOCK_SIZE - 5169;
+  offset = target_op->offset % VSFS_BLOCK_SIZE;
+  start_block_l1 = real_blocks % VSFS_POINTER_PER_BLOCK;
+  start_block_l2 = real_blocks / VSFS_POINTER_PER_BLOCK;
+
+  struct vsfs_pointer_block *l3_ptr_reg = (struct vsfs_pointer_block *)&(
+      data_reg[inode_reg[target_op->inode_nr].l3[0]]);
+  for (uint16_t i = start_block_l2; i < VSFS_POINTER_PER_BLOCK && left > 0;
+       i++) {
+    ptr_reg =
+        (struct vsfs_pointer_block *)(&(data_reg[l3_ptr_reg->__pointer[i]]));
+    for (uint16_t j = start_block_l1; j < VSFS_POINTER_PER_BLOCK && left > 0;
+         j++) {
+      if (left >= VSFS_BLOCK_SIZE - offset)
+        read_length = VSFS_BLOCK_SIZE - offset;
+      else
+        read_length = left;
+
+      if (SHOW_PROC)
+        printf(
+            "the level 3 inside value:\n"
+            "\ttarget_op->offset = %u\n"
+            "\treal_blocks = %u\n"
+            "\tl1 = %u\n"
+            "\tl2 = %u\n"
+            "\toffset = %u\n"
+            "\tnbyte = %lu\n"
+            "\tleft = %lu\n"
+            "\treaded = %lu\n"
+            "\tread_length = %lu\n"
+            "\tdata_reg = %u\n",
+            target_op->offset, real_blocks, j, i, offset, nbyte, left, readed,
+            read_length, ptr_reg->__pointer[j]);
+
+      memcpy((char *)buf + readed,
+             (char *)(data_reg[ptr_reg->__pointer[j]].data) + offset,
+             read_length);
+      readed += read_length;
+      left -= read_length;
+      offset = 0;
+      target_op->offset += read_length;
+    }
+    start_block_l1 = 0;
+  }
 
 readed:
 
@@ -1210,7 +1388,7 @@ static off_t vsfs_lseek(int fd, off_t offset, int whence) {
         printf("ERR: in vsfs_lseek(): setting offset over the file size\n");
         goto err_exit;
       }
-      if(offset < 0){
+      if (offset < 0) {
         printf("ERR: in vsfs_lseek(): setting offset less than 0\n");
         goto err_exit;
       }
@@ -1224,7 +1402,7 @@ static off_t vsfs_lseek(int fd, off_t offset, int whence) {
         printf("ERR: in vsfs_lseek(): setting offset over the file size\n");
         goto err_exit;
       }
-      if (target_op->offset + offset < 0){
+      if (target_op->offset + offset < 0) {
         printf("ERR: in vsfs_lseek(): setting offset less than 0\n");
         goto err_exit;
       }

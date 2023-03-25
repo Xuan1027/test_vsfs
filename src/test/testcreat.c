@@ -12,7 +12,7 @@
  */
 int main(int argc, char** argv) {
   char* fname = (char*)malloc(VSFS_FILENAME_LEN);
-  for (int i = 1; i <= 798; i++) {
+  for (int i = 1; i <= 782; i++) {
     sprintf(fname, "%03d", i);
     int ret = vsfs_creat(fname);
     if (ret == -1) {

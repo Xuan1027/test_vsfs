@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
     printf("ERR at open file\n");
     return -1;
   }
-  ret = vsfs_lseek(fd, 44, SEEK_SET);
+  // ret = vsfs_lseek(fd, 44, SEEK_SET);
   int i=0;
   while (vsfs_read(fd, src, 4096) != EOF) {
     printf("block <%d>:\n", i++);
