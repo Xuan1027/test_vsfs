@@ -1,10 +1,10 @@
-#include "vsfs_stdinc.h"
 #include "vsfs.h"
+#include "vsfs_stdinc.h"
 
-#define handle_error(msg)                                                      \
-  do {                                                                         \
-    perror(msg);                                                               \
-    ret = EXIT_FAILURE;                                                        \
+#define handle_error(msg) \
+  do {                    \
+    perror(msg);          \
+    ret = EXIT_FAILURE;   \
   } while (0)
 
 int main(int argc, char *argv[]) {
@@ -21,48 +21,47 @@ int main(int argc, char *argv[]) {
   ptr = mmap(NULL, fstats.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
   struct superblock *sb = (struct superblock *)ptr;
-  printf("Superblock: (%ld)\n"
-         "\tmagic=%#x\n"
-         "\tnr_blocks=%u\n"
-         "\tnr_ibitmap_blocks=%u\n"
-         "\tnr_iregion_blocks=%u\n"
-         "\tnr_dbitmap_blocks=%u\n"
-         "\tnr_dregion_blocks=%u\n"
-         "\tofs_ibitmap=%u\n"
-         "\tofs_iregion=%u\n"
-         "\tofs_dbitmap=%u\n"
-         "\tofs_dregion=%u\n"
-         "\tnr_free_inodes=%u\n"
-         "\tnr_free_dblock=%u\n",
-         sizeof(struct superblock), sb->info.magic, sb->info.nr_blocks,
-         sb->info.nr_ibitmap_blocks, sb->info.nr_iregion_blocks,
-         sb->info.nr_dbitmap_blocks, sb->info.nr_dregion_blocks,
-         sb->info.ofs_ibitmap, sb->info.ofs_iregion, sb->info.ofs_dbitmap,
-         sb->info.ofs_dregion, sb->info.nr_free_inodes, sb->info.nr_free_dblock);
+  printf(
+      "Superblock: (%ld)\n"
+      "\tmagic=%#x\n"
+      "\tnr_blocks=%u\n"
+      "\tnr_ibitmap_blocks=%u\n"
+      "\tnr_iregion_blocks=%u\n"
+      "\tnr_dbitmap_blocks=%u\n"
+      "\tnr_dregion_blocks=%u\n"
+      "\tofs_ibitmap=%u\n"
+      "\tofs_iregion=%u\n"
+      "\tofs_dbitmap=%u\n"
+      "\tofs_dregion=%u\n"
+      "\tnr_free_inodes=%u\n"
+      "\tnr_free_dblock=%u\n",
+      sizeof(struct superblock), sb->info.magic, sb->info.nr_blocks,
+      sb->info.nr_ibitmap_blocks, sb->info.nr_iregion_blocks,
+      sb->info.nr_dbitmap_blocks, sb->info.nr_dregion_blocks,
+      sb->info.ofs_ibitmap, sb->info.ofs_iregion, sb->info.ofs_dbitmap,
+      sb->info.ofs_dregion, sb->info.nr_free_inodes, sb->info.nr_free_dblock);
   struct vsfs_inode *root_inode =
       (struct vsfs_inode *)&ptr[2 * VSFS_BLOCK_SIZE];
 
-  printf("root inode:\n"
-         "\tmode: %x\n"
-         "\tblocks: %u\n"
-         "\tsize: %u\n"
-         "\tatime: %lu\n"
-         "\tctime: %lu\n"
-         "\tmtime: %lu\n",
-         root_inode->mode, root_inode->blocks, root_inode->size,
-         root_inode->atime, root_inode->ctime, root_inode->mtime);
+  printf(
+      "root inode:\n"
+      "\tmode: %x\n"
+      "\tblocks: %u\n"
+      "\tsize: %u\n"
+      "\tatime: %lu\n"
+      "\tctime: %lu\n"
+      "\tmtime: %lu\n",
+      root_inode->mode, root_inode->blocks, root_inode->size, root_inode->atime,
+      root_inode->ctime, root_inode->mtime);
   struct vsfs_dir_block *root_dir_info =
       (struct vsfs_dir_block
-           *)&ptr[(sb->info.ofs_dregion + root_inode->block[0]) *
-                  VSFS_BLOCK_SIZE];
+           *)&ptr[(sb->info.ofs_dregion + root_inode->l1[0]) * VSFS_BLOCK_SIZE];
   int i;
   printf("\\\n");
-  for(i = 0;i<root_inode->entry;i++){
-    printf("\t%s\tinode:%u\n",
-            root_dir_info->files[i].filename,
-            root_dir_info->files[i].inode
-            );
+  for (i = 0; i < root_inode->entry; i++) {
+    printf("\t%s\tinode:%u\n", root_dir_info->files[i].filename,
+           root_dir_info->files[i].inode);
   }
-  printf("nr_inode/64=%ld\n",VSFS_NR_INODES/64);
+  printf("nr_inode/64=%ld\n", VSFS_NR_INODES / 64);
   return 0;
 }

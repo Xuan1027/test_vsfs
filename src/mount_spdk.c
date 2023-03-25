@@ -1,11 +1,12 @@
-#include "vsfs.h"
-#include "vsfs_stdinc.h"
 #include <libgen.h>
 
-#define handle_error(msg)                                                      \
-  do {                                                                         \
-    perror(msg);                                                               \
-    ret = EXIT_FAILURE;                                                        \
+#include "vsfs.h"
+#include "vsfs_stdinc.h"
+
+#define handle_error(msg) \
+  do {                    \
+    perror(msg);          \
+    ret = EXIT_FAILURE;   \
   } while (0)
 
 static int make_shm_cached(char *name, char *ptr) {

@@ -15,9 +15,9 @@
  * +---------------+
  */
 struct vsfs_cached_data {
-  struct vsfs_sb_info sbi;
-  uint32_t ibitmap[VSFS_NR_INODES / 32];
-  uint32_t dbitmap[];
+    struct vsfs_sb_info sbi;
+    uint32_t ibitmap[VSFS_NR_INODES / 32];
+    uint32_t dbitmap[];
 };
 
 /*
@@ -51,16 +51,16 @@ static inline uint32_t get_first_free_bit(uint32_t *freemap,
 }
 
 static inline uint32_t get_free_inode(struct vsfs_cached_data *cd) {
-  uint32_t ret = get_first_free_bit(cd->ibitmap, VSFS_BLOCK_SIZE *
-                                                     cd->sbi.nr_ibitmap_blocks);
+  uint32_t ret = get_first_free_bit(
+      cd->ibitmap, VSFS_BLOCK_SIZE * cd->sbi.nr_ibitmap_blocks);
   if (ret)
     cd->sbi.nr_free_inodes--;
   return ret;
 }
 
 static inline uint32_t get_free_dblock(struct vsfs_cached_data *cd) {
-  uint32_t ret = get_first_free_bit(cd->dbitmap, VSFS_BLOCK_SIZE *
-                                                     cd->sbi.nr_dregion_blocks);
+  uint32_t ret = get_first_free_bit(
+      cd->dbitmap, VSFS_BLOCK_SIZE * cd->sbi.nr_dregion_blocks);
   if (ret)
     cd->sbi.nr_free_dblock--;
   return ret;

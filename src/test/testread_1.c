@@ -9,7 +9,7 @@ int main(int argc, char** argv) {
 
   char* src = (char*)malloc(555555);
 
-  fd = vsfs_open("001", O_RDWR);
+  fd = vsfs_open("001", O_RDONLY);
   if (fd == -1) {
     printf("ERR at open file\n");
     return -1;
@@ -19,19 +19,13 @@ int main(int argc, char** argv) {
     printf("ERR at read file\n");
     return -1;
   }
+  printf("%s\n", src);
+
   ret = vsfs_close(fd);
   if (ret == -1) {
     printf("ERR at close file\n");
     return -1;
   }
-
-  int count = 0;
-  for (int i = 0; i < 555555; i++)
-    if (src[i] == 'a')
-      count++;
-
-  printf("Theres have %d of char <a>\n", count);
-
 
   free(src);
 

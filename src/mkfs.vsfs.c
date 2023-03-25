@@ -1,10 +1,10 @@
-#include "vsfs_stdinc.h"
 #include "vsfs.h"
+#include "vsfs_stdinc.h"
 
-#define handle_error(msg)                                                      \
-  do {                                                                         \
-    perror(msg);                                                               \
-    ret = EXIT_FAILURE;                                                        \
+#define handle_error(msg) \
+  do {                    \
+    perror(msg);          \
+    ret = EXIT_FAILURE;   \
   } while (0)
 
 /* Returns ceil(a/b) */
@@ -47,16 +47,17 @@ static struct superblock *write_superblock(int fd, struct stat *fstats) {
     free(sb);
     return NULL;
   }
-  printf("Superblock: (%ld)\n"
-         "\tmagic=%#x\n"
-         "\tnr_blocks=%u\n"
-         "\tnr_ibitmap_blocks=%u\n"
-         "\tnr_iregion_blocks=%u\n"
-         "\tnr_dbitmap_blocks=%u\n"
-         "\tnr_dregion_blocks=%u\n",
-         sizeof(struct superblock), sb->info.magic, sb->info.nr_blocks,
-         sb->info.nr_ibitmap_blocks, sb->info.nr_iregion_blocks,
-         sb->info.nr_dbitmap_blocks, sb->info.nr_dregion_blocks);
+  printf(
+      "Superblock: (%ld)\n"
+      "\tmagic=%#x\n"
+      "\tnr_blocks=%u\n"
+      "\tnr_ibitmap_blocks=%u\n"
+      "\tnr_iregion_blocks=%u\n"
+      "\tnr_dbitmap_blocks=%u\n"
+      "\tnr_dregion_blocks=%u\n",
+      sizeof(struct superblock), sb->info.magic, sb->info.nr_blocks,
+      sb->info.nr_ibitmap_blocks, sb->info.nr_iregion_blocks,
+      sb->info.nr_dbitmap_blocks, sb->info.nr_dregion_blocks);
   return sb;
 }
 
@@ -85,10 +86,11 @@ static int write_inode_region(int fd, struct superblock *sb) {
       goto end;
   }
 
-  printf("Inode region:\n"
-         "\tinode size = %ld B\n"
-         "\twrote %u blocks\n",
-         sizeof(struct vsfs_inode), count);
+  printf(
+      "Inode region:\n"
+      "\tinode size = %ld B\n"
+      "\twrote %u blocks\n",
+      sizeof(struct vsfs_inode), count);
   free(block);
   return 0;
 end:
@@ -107,7 +109,7 @@ static int write_inode_bitmap(int fd, struct superblock *sb) {
   memset(ibitmap, 0xff, VSFS_BLOCK_SIZE);
   /* First inode */
   ibitmap[0] = htole64(0xfffffffffffffffe);
-  
+
   int ret = write(fd, ibitmap, VSFS_BLOCK_SIZE);
   if (ret != VSFS_BLOCK_SIZE) {
     free(block);
@@ -144,9 +146,10 @@ static int write_data_bitmap(int fd, struct superblock *sb) {
     }
   }
   ret = 0;
-  printf("Data bitmap:\n"
-         "\twrote %d blocks\n",
-         i);
+  printf(
+      "Data bitmap:\n"
+      "\twrote %d blocks\n",
+      i);
 
 end:
   free(block);
@@ -172,8 +175,9 @@ static int write_data_region(int fd, struct superblock *sb) {
     return -1;
   }
 
-  printf("Data region:\n"
-         "\twrote 1 blocks\n");
+  printf(
+      "Data region:\n"
+      "\twrote 1 blocks\n");
   free(block);
   return 0;
 }
@@ -201,8 +205,8 @@ int main(int argc, char **argv) {
   /* Get block device size */
   if ((stat_buf.st_mode & S_IFMT) == S_IFBLK) {
     long int blk_size = 0;
-    ret = ioctl(fd,BLKGETSIZE64,&blk_size);
-    if(ret!=0){
+    ret = ioctl(fd, BLKGETSIZE64, &blk_size);
+    if (ret != 0) {
       handle_error("BLKGETSIZE64:");
       goto fclose;
     }
@@ -211,8 +215,8 @@ int main(int argc, char **argv) {
 
   printf("stat_buf->st_size=0x%lx\n", stat_buf.st_size);
 
-  long min_size = 2052*VSFS_BLOCK_SIZE;
-  if(stat_buf.st_size<=min_size){
+  long min_size = 2052 * VSFS_BLOCK_SIZE;
+  if (stat_buf.st_size <= min_size) {
     fprintf(stderr, "File is not large enough (size=%ld,min size=%ld)\n",
             stat_buf.st_size, min_size);
     ret = EXIT_FAILURE;
@@ -249,12 +253,13 @@ int main(int argc, char **argv) {
     goto free_sb;
   }
 
-  printf("sizeof(superblock) = %ld\n"
-         "sizeof(vsfs_sb_info) = %ld\n"
-         "sizeof(vsfs_inode) = %ld\n"
-         "sizeof(vsfs_dir_block) = %ld\n",
-         sizeof(struct superblock), sizeof(struct vsfs_sb_info),
-         sizeof(struct vsfs_inode), sizeof(struct vsfs_dir_block));
+  printf(
+      "sizeof(superblock) = %ld\n"
+      "sizeof(vsfs_sb_info) = %ld\n"
+      "sizeof(vsfs_inode) = %ld\n"
+      "sizeof(vsfs_dir_block) = %ld\n",
+      sizeof(struct superblock), sizeof(struct vsfs_sb_info),
+      sizeof(struct vsfs_inode), sizeof(struct vsfs_dir_block));
 
 free_sb:
   free(sb);

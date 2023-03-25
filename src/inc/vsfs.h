@@ -11,17 +11,24 @@
 #define VSFS_BLOCK_SIZE (1 << 12)
 #define VSFS_MAX_LEVEL1_ENTRY 50
 #define VSFS_MAX_LEVEL2_ENTRY (5 << 10)
-#define VSFS_MAX_LEVEL3_ENTRY                                                  \
+#define VSFS_MAX_LEVEL3_ENTRY \
   ((1 << 20) - VSFS_MAX_LEVEL1_ENTRY - VSFS_MAX_LEVEL2_ENTRY)
 /* 4GiB */
 #define VSFS_MAX_FILESIZE ((1 << 20) * VSFS_BLOCK_SIZE)
-#define VSFS_NR_INODES ((1 << 11) * (VSFS_BLOCK_SIZE / sizeof(struct vsfs_inode)))
+#define VSFS_NR_INODES \
+  ((1 << 11) * (VSFS_BLOCK_SIZE / sizeof(struct vsfs_inode)))
 #define VSFS_FILENAME_LEN 254
-#define VSFS_FILES_PER_BLOCK \
-  (VSFS_BLOCK_SIZE / sizeof(struct vsfs_file_entry))
+#define VSFS_FILES_PER_BLOCK (VSFS_BLOCK_SIZE / sizeof(struct vsfs_file_entry))
 
 /* define the open table size */
 #define VSFS_OPTAB_SIZE VSFS_BLOCK_SIZE
+#define VSFS_POINTER_PER_BLOCK VSFS_BLOCK_SIZE / sizeof(int)
+#define VSFS_LEVEL1_PTR 50
+#define VSFS_LEVEL2_PTR 5 * VSFS_POINTER_PER_BLOCK
+#define VSFS_LEVEL3_PTR VSFS_POINTER_PER_BLOCK* VSFS_POINTER_PER_BLOCK
+#define VSFS_LEVEL1_LIMIT VSFS_LEVEL1_PTR
+#define VSFS_LEVEL2_LIMIT VSFS_LEVEL1_PTR + VSFS_LEVEL2_PTR
+#define VSFS_LEVEL3_LIMIT VSFS_LEVEL1_PTR + VSFS_LEVEL2_PTR + VSFS_LEVEL3_PTR
 
 /*
  * vsfs partition layout
@@ -39,72 +46,67 @@
  * +---------------+
  */
 struct vsfs_sb_info {
-  uint32_t magic; /* Magic number */
+    uint32_t magic; /* Magic number */
 
-  uint32_t nr_blocks; /* Total number of blocks */
+    uint32_t nr_blocks; /* Total number of blocks */
 
-  uint32_t ofs_ibitmap;
-  uint32_t ofs_iregion;
-  uint32_t ofs_dbitmap;
-  uint32_t ofs_dregion;
+    uint32_t ofs_ibitmap;
+    uint32_t ofs_iregion;
+    uint32_t ofs_dbitmap;
+    uint32_t ofs_dregion;
 
-  uint32_t nr_ibitmap_blocks; /* Number of inode bitmap blocks (fixed 1)*/
-  uint32_t nr_iregion_blocks; /* Number of inode region blocks (fixed 2048) */
-  uint32_t nr_dbitmap_blocks; /* Number of data  bitmap blocks */
-  uint32_t nr_dregion_blocks; /* Number of data  region blocks */
+    uint32_t nr_ibitmap_blocks; /* Number of inode bitmap blocks (fixed 1)*/
+    uint32_t nr_iregion_blocks; /* Number of inode region blocks (fixed 2048) */
+    uint32_t nr_dbitmap_blocks; /* Number of data  bitmap blocks */
+    uint32_t nr_dregion_blocks; /* Number of data  region blocks */
 
-  uint32_t nr_free_inodes;
-  uint32_t nr_free_dblock;
-
+    uint32_t nr_free_inodes;
+    uint32_t nr_free_dblock;
 };
 
 struct superblock {
-  struct vsfs_sb_info info;
-  /* Padding to match block size */
-  char padding[4096 - sizeof(struct vsfs_sb_info)];
-};
-
-
-struct vsfs_level {
-  unsigned int l1[50];
-  unsigned int l2[5];
-  unsigned int l3[1];
+    struct vsfs_sb_info info;
+    /* Padding to match block size */
+    char padding[4096 - sizeof(struct vsfs_sb_info)];
 };
 
 struct vsfs_inode {
-  uint16_t mode;   /* File mode -> drwx */
-  uint16_t blocks; /* Total number of data blocks count */
-  union {
-    uint32_t size;   /* File: size in byte || Dir: entry num */
-    uint32_t entry;
-  };
-  time_t atime;    /* Access time */
-  time_t ctime;    /* Inode change time */
-  time_t mtime;    /* Modification time */
-  union {
-    unsigned int block[56];
-    struct vsfs_level lv;
-  };
+    uint16_t mode;   /* File mode -> drwx */
+    uint16_t blocks; /* Total number of data blocks count */
+    union {
+        uint32_t size; /* File: size in byte || Dir: entry num */
+        uint32_t entry;
+    };
+    time_t atime; /* Access time */
+    time_t ctime; /* Inode change time */
+    time_t mtime; /* Modification time */
+    unsigned int l1[50];
+    unsigned int l2[5];
+    unsigned int l3[1];
 };
 
 struct vsfs_file_entry {
-  uint16_t inode;
-  char filename[VSFS_FILENAME_LEN];
+    uint16_t inode;
+    char filename[VSFS_FILENAME_LEN];
 };
 
 struct vsfs_dir_block {
-  struct vsfs_file_entry files[VSFS_FILES_PER_BLOCK];
+    struct vsfs_file_entry files[VSFS_FILES_PER_BLOCK];
 };
 
 struct vsfs_data_block {
-  char data[VSFS_BLOCK_SIZE];
+    char data[VSFS_BLOCK_SIZE];
+};
+
+struct vsfs_pointer_block {
+    uint32_t __pointer[VSFS_POINTER_PER_BLOCK];
 };
 
 typedef struct op_file_table_entry {
-  uint32_t offset;
-  uint16_t inode_nr;
-  uint8_t ptr_counter;
-  uint8_t lock;
+    uint32_t offset;
+    uint16_t inode_nr;
+    uint8_t ptr_counter;
+    uint8_t lock;
 } op_ftable_t;
 
 /* superblock functions */

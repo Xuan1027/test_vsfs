@@ -1,6 +1,7 @@
 #ifndef VSFS_STDINC_H
 #define VSFS_STDINC_H
 
+#include <errno.h>
 #include <fcntl.h>
 #include <linux/fs.h>
 #include <stdint.h>
@@ -10,8 +11,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <unistd.h>
-#include <errno.h>
 #include <time.h>
+#include <unistd.h>
 
 #endif

@@ -1,10 +1,10 @@
-#include "vsfs_stdinc.h"
 #include "vsfs.h"
+#include "vsfs_stdinc.h"
 
-#define handle_error(msg)                                                      \
-  do {                                                                         \
-    perror(msg);                                                               \
-    ret = EXIT_FAILURE;                                                        \
+#define handle_error(msg) \
+  do {                    \
+    perror(msg);          \
+    ret = EXIT_FAILURE;   \
   } while (0)
 
 static int make_shm_cached(char *name, char *ptr) {
@@ -28,14 +28,12 @@ static int make_shm_cached(char *name, char *ptr) {
     goto free_str;
   }
 
-  
-
   // sizeof(inode bitmap + data bitmap)
   uint32_t bitmap_total_size =
       (sb->info.nr_ibitmap_blocks + sb->info.nr_dbitmap_blocks) *
       VSFS_BLOCK_SIZE;
 
-  if(ftruncate(cfd, sizeof(struct vsfs_sb_info) + bitmap_total_size)==-1){
+  if (ftruncate(cfd, sizeof(struct vsfs_sb_info) + bitmap_total_size) == -1) {
     handle_error("ftruncate():");
     goto free_str;
   }
@@ -52,10 +50,8 @@ static int make_shm_cached(char *name, char *ptr) {
                          (sb->info.nr_ibitmap_blocks * VSFS_BLOCK_SIZE);
 
   memcpy(cached_sb, sb, sizeof(struct vsfs_sb_info));
-  memcpy(cached_ibitmap, ibitmap,
-         sb->info.nr_ibitmap_blocks * VSFS_BLOCK_SIZE);
-  memcpy(cached_dbitmap, dbitmap,
-         sb->info.nr_dbitmap_blocks * VSFS_BLOCK_SIZE);
+  memcpy(cached_ibitmap, ibitmap, sb->info.nr_ibitmap_blocks * VSFS_BLOCK_SIZE);
+  memcpy(cached_dbitmap, dbitmap, sb->info.nr_dbitmap_blocks * VSFS_BLOCK_SIZE);
   munmap(cptr, sizeof(struct vsfs_sb_info) + bitmap_total_size);
 free_str:
   free(cached);
@@ -63,31 +59,31 @@ end:
   return ret;
 }
 
-static int init_spdk_daemon(){
+static int init_spdk_daemon() {
   int ret = 0;
   // todo:
   return ret;
 }
 
-static int creat_open_file_table(){
+static int creat_open_file_table() {
   // open file table test
   int opfd = shm_open("optab", O_CREAT | O_RDWR, 0666);
-  if(opfd < 0)
+  if (opfd < 0)
     return opfd;
 
-  if(ftruncate(opfd, VSFS_OPTAB_SIZE + sizeof(unsigned short))==-1){
+  if (ftruncate(opfd, VSFS_OPTAB_SIZE + sizeof(unsigned short)) == -1) {
     close(opfd);
     printf("ftruncate open table size ERR!\n");
     return -1;
   }
 
-  op_ftable_t* init = (op_ftable_t*)malloc(VSFS_OPTAB_SIZE);
+  op_ftable_t *init = (op_ftable_t *)malloc(VSFS_OPTAB_SIZE);
   memset(init, 0, VSFS_OPTAB_SIZE);
 
   unsigned short count = 0;
 
   int ret = write(opfd, &count, sizeof(unsigned short));
-  if(ret != sizeof(unsigned short)){
+  if (ret != sizeof(unsigned short)) {
     free(init);
     close(opfd);
     printf("init the op_ftable entry counter ERR!\n");
@@ -135,7 +131,7 @@ int main(int argc, char *argv[]) {
     goto unmap;
   }
 
-  if(creat_open_file_table() < 0)
+  if (creat_open_file_table() < 0)
     handle_error("creat_open_file_table():");
 
   ret = init_spdk_daemon();
