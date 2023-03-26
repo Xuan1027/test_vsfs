@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
   for (int i = 0; i < *op_counter; i++) {
     printf(
         "the <%d> entry:\n"
-        "\toffset: %u\n"
+        "\toffset: %lu\n"
         "\tinode_nr: %u\n"
         "\tptr_counter: %u\n"
         "\tlock: %u\n",

@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
     return ret;
   }
 
-  if (ftruncate(fd, 0x100000 << 10) == -1) {
+  if (ftruncate(fd, 0x140000000) == -1) {
     handle_error("ftruncate():");
     goto fclose;
   }

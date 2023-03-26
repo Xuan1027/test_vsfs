@@ -21,7 +21,7 @@
 #define VSFS_FILES_PER_BLOCK (VSFS_BLOCK_SIZE / sizeof(struct vsfs_file_entry))
 
 /* define the open table size */
-#define VSFS_OPTAB_SIZE VSFS_BLOCK_SIZE
+#define VSFS_OPTAB_SIZE 2 * VSFS_BLOCK_SIZE
 #define VSFS_POINTER_PER_BLOCK (VSFS_BLOCK_SIZE / sizeof(int))
 #define VSFS_LEVEL1_PTR 49
 #define VSFS_LEVEL2_PTR 5 * VSFS_POINTER_PER_BLOCK
@@ -103,10 +103,10 @@ struct vsfs_pointer_block {
 };
 
 typedef struct op_file_table_entry {
-    uint32_t offset;
-    uint16_t inode_nr;
-    uint8_t ptr_counter;
-    uint8_t lock;
+    uint64_t offset;
+    uint32_t inode_nr;
+    uint16_t ptr_counter;
+    uint16_t lock;
 } op_ftable_t;
 
 /* superblock functions */

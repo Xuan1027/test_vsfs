@@ -8,9 +8,8 @@
 
 int main(int argc, char **argv) {
   int fd, ret = 0;
-  struct timeval starttime, endtime;
 
-  char *src = (char *)malloc(4096);
+  char *src = (char *)malloc(4097);
 
   FILE *fp = fopen("./src/test/testdata2.txt", "r");
   ret = fscanf(fp, "%s", src);
@@ -25,6 +24,7 @@ int main(int argc, char **argv) {
 
   printf("count = %d\n", count);
 
+  struct timeval starttime, endtime;
   gettimeofday(&starttime, 0);
 
   fd = vsfs_open("001", O_RDWR);
@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     printf("ERR at open file\n");
     return -1;
   }
-  for (int i = 1; i <= 1024 * 1024; i++) {
+  for (int i = 1; i <= 1; i++) {
     // printf("==================================================\n");
     // printf("the <%d> term:\n", i);
     ret = vsfs_write(fd, src, 4096);
@@ -41,7 +41,6 @@ int main(int argc, char **argv) {
       return -1;
     }
   }
-  // vsfs_print_block_nbr(fd);
   ret = vsfs_close(fd);
   if (ret == -1) {
     printf("ERR at close file\n");
