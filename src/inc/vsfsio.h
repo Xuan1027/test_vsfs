@@ -3,12 +3,14 @@
 
 #include "vsfs.h"
 #include "vsfs_bitmap.h"
+#include "vsfs_func.h"
 #include "vsfs_shmfunc.h"
 #include "vsfs_stdinc.h"
 
 #define SHM_NAME "vsfs"
 #define SHM_CACHE_NAME "vsfs_cached"
 #define SHOW_PROC 0
+#define SHOW_PROG 0
 #define OP_LIMIT VSFS_OPTAB_SIZE / sizeof(op_ftable_t)
 #define PAUSE                               \
   printf("Press Enter key to continue..."); \
@@ -38,8 +40,8 @@ typedef struct file_stat {
     char mode[5];    /* File mode -> drwx */
     uint32_t blocks; /* Total number of data blocks count */
     union {
-        uint32_t size; /* File: size in byte || Dir: entry num */
-        uint32_t entry;
+        uint64_t size; /* File: size in byte || Dir: entry num */
+        uint64_t entry;
     };
     char atime[39]; /* Access time */
     char ctime[39]; /* Inode change time */
@@ -607,6 +609,10 @@ static int vsfs_stat(char *pathname, file_stat_t *fre) {
     fre->mode[3] = '-';
   fre->mode[4] = '\0';
 
+  if (tmp_inode_reg[target_inode].size == 0 &&
+      tmp_inode_reg[target_inode].blocks == 1048576)
+    fre->size = 0x100000000;
+
   fre->blocks = tmp_inode_reg[target_inode].blocks;
   strcpy(fre->ctime, ctime(&(tmp_inode_reg[target_inode].ctime)));
   strcpy(fre->atime, ctime(&(tmp_inode_reg[target_inode].atime)));
@@ -686,6 +692,32 @@ void vsfs_print_block_nbr(int fildes) {
     // PAUSE;
   }
 }
+static int _find_target_in_fdtable(int fildes, fd_table_t **target_fd,
+                                   op_ftable_t **target_op) {
+  short fd_find = 0;
+
+  if (!fd_table) {
+    printf("ERR: in _find_target_in_fdtable(): fd table are not exist!\n");
+    return -1;
+  }
+  for (fd_table_t *tmp = fd_table->head; tmp; tmp = tmp->next) {
+    if (tmp->index == fildes) {
+      fd_find = 1;
+      if(target_fd)
+        *target_fd = tmp;
+      if(target_op)
+        *target_op = tmp->ptr;
+    }
+  }
+  if (!fd_find) {
+    printf(
+        "ERR: in _find_target_in_fdtable(): not found the target in "
+        "fd_table!\n");
+    return -1;
+  }
+
+  return 0;
+}
 /**
  * writting data into disk
  * @param shm_name shm for store data
@@ -710,20 +742,11 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
   if (SHOW_PROC)
     printf("vsfs_write(): finding the file\n");
   // finding the fd in fd_table
-  short fd_find = 0;
   fd_table_t *target_fd = NULL;
   op_ftable_t *target_op = NULL;
-  for (fd_table_t *tmp = fd_table->head; tmp; tmp = tmp->next) {
-    if (tmp->index == fildes) {
-      fd_find = 1;
-      target_fd = tmp;
-      target_op = tmp->ptr;
-    }
-  }
-  if (!fd_find) {
-    printf("ERR: in vsfs_write(): not found the fd in fd_table\n");
+  int ret = _find_target_in_fdtable(fildes, &target_fd, &target_op);
+  if (ret == -1)
     goto err_exit;
-  }
   if (target_fd->flags == O_RDONLY) {
     printf("ERR: in vsfs_write(): the open flags error!\n");
     goto err_exit;
@@ -1019,6 +1042,8 @@ start_write:
     left -= write_length;
     offset = 0;
     target_op->offset += write_length;
+    if (SHOW_PROG)
+      progress_bar(written, nbyte);
   }
 
   if (!left)
@@ -1065,6 +1090,8 @@ write_level_2:
       left -= write_length;
       offset = 0;
       target_op->offset += write_length;
+      if (SHOW_PROG)
+        progress_bar(written, nbyte);
     }
     start_block_l1 = 0;
   }
@@ -1116,6 +1143,8 @@ write_level_3:
       left -= write_length;
       offset = 0;
       target_op->offset += write_length;
+      if (SHOW_PROG)
+        progress_bar(written, nbyte);
     }
     start_block_l1 = 0;
   }
@@ -1153,20 +1182,11 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte) {
   if (SHOW_PROC)
     printf("vsfs_read(): finding the file\n");
   // finding the fd in fd_table
-  short fd_find = 0;
   fd_table_t *target_fd = NULL;
   op_ftable_t *target_op = NULL;
-  for (fd_table_t *tmp = fd_table->head; tmp; tmp = tmp->next) {
-    if (tmp->index == fildes) {
-      fd_find = 1;
-      target_fd = tmp;
-      target_op = tmp->ptr;
-    }
-  }
-  if (!fd_find) {
-    printf("ERR: in vsfs_read(): not found the fd in fd_table\n");
+  int ret = _find_target_in_fdtable(fildes, &target_fd, &target_op);
+  if (ret == -1)
     goto err_exit;
-  }
   if (target_fd->flags == O_WRONLY) {
     printf("ERR: in vsfs_read(): the open flags error!\n");
     goto err_exit;
@@ -1396,18 +1416,10 @@ static off_t vsfs_lseek(int fd, off_t offset, int whence) {
   if (SHOW_PROC)
     printf("vsfs_lseek(): finding the file\n");
   // finding the fd in fd_table
-  short fd_find = 0;
   op_ftable_t *target_op = NULL;
-  for (fd_table_t *tmp = fd_table->head; tmp; tmp = tmp->next) {
-    if (tmp->index == fd) {
-      fd_find = 1;
-      target_op = tmp->ptr;
-    }
-  }
-  if (!fd_find) {
-    printf("ERR: in vsfs_lseek(): not found the fd in fd_table\n");
+  int re = _find_target_in_fdtable(fd, NULL, &target_op);
+  if (re == -1)
     goto err_exit;
-  }
 
   uint64_t file_size = inode_reg[target_op->inode_nr].size;
   if (inode_reg[target_op->inode_nr].size == 0 &&

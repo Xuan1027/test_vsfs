@@ -23,8 +23,8 @@ int main(int argc, char** argv) {
     printf(
         "inode of <%s>:\n"
         "\tmode = %s\n"
-        "\tsize = %d\n"
-        "\tblocks = %d\n"
+        "\tsize = %lu\n"
+        "\tblocks = %u\n"
         "\tctime = %s"
         "\tatime = %s"
         "\tmtime = %s",

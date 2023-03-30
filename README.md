@@ -13,21 +13,21 @@ very simple file system
 
 |   member   | type           | note                              | size |
 |:----------:| -------------- | --------------------------------- | ---- |
-|    mode    | unsigned short | drwx                              | 2    |
+|    mode    | unsigned int   | drwx                              | 4    |
+|   blocks   | unsigned int   |                                   | 4    |
 | size/entry | unsigned int   | file max size 4GB / dir entry num | 4    |
 |   atime    | time_t         | last access                       | 8    |
 |   ctime    | time_t         | create                            | 8    |
 |   mtime    | time_t         | modify                            | 8    |
-|   blocks   | unsigned short |                                   | 2    |
-| block[56]  | unsigned int*  | LBA pointer                       | 224  |
+| block[55]  | unsigned int*  | LBA pointer                       | 220  |
 
 ### file block[56]
 
 | index | type    | mapping size        |
 |:-----:| ------- | ------------------- |
-| 0~49  | 1 level | 50x4K=20KB          |
-| 50~54 | 2 level | 5x1024x4KB=20MB     |
-|  55   | 3 level | 1x1024x1024x4KB=4GB |
+|  0~48 | 1 level | 19x4K=76KB          |
+| 49~53 | 2 level | 5x1024x4KB=20MB     |
+|    54 | 3 level | 1x1024x1024x4KB=4GB |
 
 ### dir block[56]
 > sizeof(entry) = 256
@@ -38,5 +38,5 @@ very simple file system
 | inodeptr | unsigned short | 2    |
 
 
-All 1 level $\to$ 56x16=896 entries
+All 1 level $\to$ 49x16=784 entries
 (or the same as a normal document)
