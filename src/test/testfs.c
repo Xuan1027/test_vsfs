@@ -8,7 +8,7 @@
   } while (0)
 
 int main(int argc, char *argv[]) {
-  int fd = shm_open("test", O_CREAT | O_RDWR, 0666);
+  int fd = shm_open("vsfs", O_CREAT | O_RDWR, 0666);
 
   struct stat fstats;
   int ret = fstat(fd, &fstats);

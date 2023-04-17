@@ -46,18 +46,19 @@ faild_ret:
   return ret;
 }
 
-static void shm_close(void* ptr, int* fd) {
+static void shm_close(void* ptr, int fd) {
   int re;
   struct stat fstats;
-  re = fstat(*fd, &fstats);
+  re = fstat(fd, &fstats);
   if (re < 0) {
     printf("fstat shm in shm_close failed: %s\n", strerror(errno));
   }
+  // printf("size= %ld\n", fstats.st_size);
   re = munmap(ptr, fstats.st_size);
   if (re < 0) {
     printf("munmap shm in shm_close failed: %s\n", strerror(errno));
   }
-  re = close(*fd);
+  re = close(fd);
   if (re < 0) {
     printf("close shm in shm_close failed: %s\n", strerror(errno));
   }

@@ -1,0 +1,6 @@
+[submodule "spdk"]
+	path = spdk
+	url = https://github.com/spdk/spdk.git
+[submodule "fio"]
+	path = fio
+	url = https://github.com/axboe/fio

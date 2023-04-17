@@ -1,0 +1,15 @@
+[global]
+ioengine=/home/xuan/vsfs/src/fio/myfio
+
+thread=1
+group_reporting=1
+
+bs=4k
+rw=randread
+time_based=1
+runtime=10
+filename=test
+iodepth=1
+
+[test_file]
+size=1G

@@ -1,2 +1,3 @@
-compile/*
-obj/*
+build
+obj
+src/fio/test

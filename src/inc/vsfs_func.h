@@ -9,7 +9,8 @@
  * @param progress is the work you already done
  * @param total is the total work need to be done
  */
-void progress_bar(size_t progress, size_t total) {
+static void __attribute__((unused))
+progress_bar(size_t progress, size_t total) {
   struct winsize w;
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
   int winsize = w.ws_col - 20, loading_size;

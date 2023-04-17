@@ -9,12 +9,12 @@
 int main(int argc, char** argv) {
   int fd, ret = 0;
 
-  char* src = (char*)malloc(4096);
+  char* src = (char*)malloc(3333);
 
   struct timeval starttime, endtime;
   gettimeofday(&starttime, 0);
 
-  fd = vsfs_open("001", O_RDWR);
+  fd = vsfs_open("test", O_RDWR);
   if (fd == -1) {
     printf("ERR at open file\n");
     return -1;
@@ -27,8 +27,8 @@ int main(int argc, char** argv) {
   // }
 
   uint64_t count = 0;
-  while (vsfs_read(fd, src, 4096) != EOF) {
-    for (int j = 0; j < 4096; j++) {
+  while (vsfs_read(fd, src, 3333) != EOF) {
+    for (int j = 0; j < 3333; j++) {
       if (src[j] == 'a')
         count++;
       else {
