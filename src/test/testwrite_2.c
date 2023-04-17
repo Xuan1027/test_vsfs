@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
 
   gettimeofday(&starttime, 0);
 
-  vsfs_creat("test");
+  vsfs_creat("test", 0);
 
   fd = vsfs_open("test", O_RDWR);
   if (fd == -1) {

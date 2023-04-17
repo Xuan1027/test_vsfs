@@ -54,7 +54,7 @@ struct superblock *sb = NULL;
 struct vsfs_cached_data *sb_cached = NULL;
 unsigned short *op_counter = NULL;
 
-static int vsfs_creat(const char *file_name) __attribute__((unused));
+static int vsfs_creat(const char *file_name, uint32_t block_num) __attribute__((unused));
 static int vsfs_stat(char *pathname, file_stat_t *fre) __attribute__((unused));
 static int vsfs_open(char *pathname, int flags) __attribute__((unused));
 static int vsfs_close(int fildes) __attribute__((unused));
@@ -65,17 +65,142 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte)
 static uint64_t vsfs_lseek(int fd, uint64_t offset, int whence)
     __attribute__((unused));
 
+static int __alloc_block(struct vsfs_inode *inode_reg,
+                         struct vsfs_data_block *data_reg, uint32_t inode_nr,
+                         uint32_t need_alloc) {
+  uint32_t count_down = need_alloc;
+  uint32_t real_blocks = inode_reg[inode_nr].blocks;
+  uint16_t start_block_l1 = 0;
+  uint16_t start_block_l2 = 0;
+  struct vsfs_pointer_block *ptr_reg;
+  struct vsfs_pointer_block *l3_ptr_reg;
+
+  // determine ptr level to use
+  if (inode_reg[inode_nr].blocks >= VSFS_LEVEL2_LIMIT) {
+    goto level3;
+  }
+  if (inode_reg[inode_nr].blocks >= VSFS_LEVEL1_LIMIT) {
+    goto level2;
+  }
+  if (SHOW_PROC)
+    printf(
+        "the level 1 inside flags is:\n"
+        "\ttotal blocks = %u\n"
+        "\treal_blocks = %u\n"
+        "\ttart_block_l2 = %u\n"
+        "\ttart_block_l1 = %u\n"
+        "\ttotal_needed_blocks = %u\n"
+        "\tcount_down = %u\n",
+        inode_reg[inode_nr].blocks, real_blocks, start_block_l2, start_block_l1,
+        need_alloc, count_down);
+
+  // adding new block to level 1
+  start_block_l1 = inode_reg[inode_nr].blocks;
+  for (uint16_t i = start_block_l1; i < VSFS_LEVEL1_LIMIT && count_down > 0;
+       i++, count_down--) {
+    inode_reg[inode_nr].l1[i] = get_free_dblock(sb_cached);
+    inode_reg[inode_nr].blocks++;
+  }
+  if (!count_down)
+    return 0;
+
+  // adding new block to level 2
+level2:
+
+  real_blocks = inode_reg[inode_nr].blocks;
+  real_blocks -= VSFS_LEVEL1_LIMIT;
+  start_block_l1 = real_blocks % 1024;
+  start_block_l2 = real_blocks / 1024;
+  if (SHOW_PROC)
+    printf(
+        "the level 2 inside flags is:\n"
+        "\ttotal blocks = %u\n"
+        "\treal_blocks = %u\n"
+        "\ttart_block_l2 = %u\n"
+        "\ttart_block_l1 = %u\n"
+        "\ttotal_needed_blocks = %u\n"
+        "\tcount_down = %u\n",
+        inode_reg[inode_nr].blocks, real_blocks, start_block_l2, start_block_l1,
+        need_alloc, count_down);
+
+  for (uint16_t i = start_block_l2; i < 5 && count_down > 0; i++) {
+    if (start_block_l1 == 0)
+      inode_reg[inode_nr].l2[i] = get_free_dblock(sb_cached);
+    ptr_reg =
+        (struct vsfs_pointer_block *)&(data_reg[inode_reg[inode_nr].l2[i]]);
+    for (uint16_t j = start_block_l1;
+         j < VSFS_POINTER_PER_BLOCK && count_down > 0; j++, count_down--) {
+      ptr_reg->__pointer[j] = get_free_dblock(sb_cached);
+      inode_reg[inode_nr].blocks++;
+    }
+    start_block_l1 = 0;
+  }
+
+  if (!count_down)
+    return 0;
+
+level3:
+  real_blocks = inode_reg[inode_nr].blocks;
+  real_blocks -= VSFS_LEVEL2_LIMIT;
+  start_block_l1 = real_blocks % 1024;
+  start_block_l2 = real_blocks / 1024;
+  if (SHOW_PROC)
+    printf(
+        "the level 3 inside flags is:\n"
+        "\ttotal blocks = %u\n"
+        "\treal_blocks = %u\n"
+        "\ttart_block_l2 = %u\n"
+        "\ttart_block_l1 = %u\n"
+        "\ttotal_needed_blocks = %u\n"
+        "\tcount_down = %u\n",
+        inode_reg[inode_nr].blocks, real_blocks, start_block_l2, start_block_l1,
+        need_alloc, count_down);
+
+  if (real_blocks == 0) {
+    inode_reg[inode_nr].l3[0] = get_free_dblock(sb_cached);
+    if (SHOW_PROC)
+      printf("l3_dblock = %u\n", inode_reg[inode_nr].l3[0]);
+  }
+
+  l3_ptr_reg =
+      (struct vsfs_pointer_block *)&(data_reg[inode_reg[inode_nr].l3[0]]);
+  for (uint16_t i = start_block_l2; i < 1024 && count_down > 0; i++) {
+    if (start_block_l1 == 0) {
+      l3_ptr_reg->__pointer[i] = get_free_dblock(sb_cached);
+      if (SHOW_PROC)
+        printf("l2_dblock = %u\n", l3_ptr_reg->__pointer[i]);
+    }
+    ptr_reg =
+        (struct vsfs_pointer_block *)&(data_reg[l3_ptr_reg->__pointer[i]]);
+    for (uint16_t j = start_block_l1;
+         j < VSFS_POINTER_PER_BLOCK && count_down > 0; j++, count_down--) {
+      ptr_reg->__pointer[j] = get_free_dblock(sb_cached);
+      if (SHOW_PROC)
+        printf("l1_dblock = %u\n", ptr_reg->__pointer[j]);
+      inode_reg[inode_nr].blocks++;
+    }
+    start_block_l1 = 0;
+  }
+
+  if (!count_down)
+    return 0;
+
+  return 1;
+}
+
 /**
  * create a new file
  * \param shm_name the share memory name
  */
-static int vsfs_creat(const char *file_name) {
+static int vsfs_creat(const char *file_name, uint32_t block_num) {
   int tmp_fd, tmp_fdc;
   struct superblock *tmp_sb;
   uint32_t f_inode, f_dblock, d_entry;
+  uint16_t entry_limit;
   struct vsfs_cached_data *tmp_sb_cached;
   struct vsfs_inode *tmp_inode_reg;
-  struct vsfs_dir_block *tmp_data_reg;
+  struct vsfs_dir_block *tmp_dir_reg;
+  struct vsfs_data_block *tmp_data_reg;
   char *name;
 
   if (SHOW_PROC)
@@ -106,9 +231,34 @@ static int vsfs_creat(const char *file_name) {
   tmp_inode_reg =
       (struct vsfs_inode *)((char *)tmp_sb +
                             tmp_sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
-  tmp_data_reg =
+  tmp_dir_reg =
       (struct vsfs_dir_block *)((char *)tmp_sb +
                                 tmp_sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
+  tmp_data_reg =
+      (struct vsfs_data_block *)((char *)tmp_sb +
+                                 tmp_sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
+
+  // need to find if there have same file_name
+  for (uint32_t i = 0; i <= tmp_inode_reg->entry / 16; i++) {
+    if (i == tmp_inode_reg->entry / 16)
+      entry_limit = tmp_inode_reg->entry - i * 16;
+    else
+      entry_limit = 16;
+    for (uint32_t j = 0; j < entry_limit; j++) {
+      if (SHOW_PROC) {
+        printf("i = %u\nj = %u\n", i, j);
+        printf(
+            "file_name = %s\n"
+            "name = %s\n",
+            tmp_dir_reg[i].files[j].filename, name);
+      }
+
+      if (!strcmp(tmp_dir_reg[i].files[j].filename, name)) {
+        printf("ERR: in vsfs_creat(): you have the same file_name in FS\n");
+        goto sup_cached_err_exit;
+      }
+    }
+  }
 
   f_inode = get_free_inode(tmp_sb_cached);
   f_dblock = tmp_inode_reg->entry / 16;
@@ -151,9 +301,8 @@ adding_entry:
   if (SHOW_PROC)
     printf("vsfs_creat(): setting the new inode\n");
   // writing the data block entry
-  tmp_data_reg[f_dblock].files[d_entry].inode = f_inode;
-  memcpy(tmp_data_reg[f_dblock].files[d_entry].filename, name,
-         strlen(name) + 1);
+  tmp_dir_reg[f_dblock].files[d_entry].inode = f_inode;
+  memcpy(tmp_dir_reg[f_dblock].files[d_entry].filename, name, strlen(name) + 1);
   tmp_inode_reg->entry++;
   free(name);
 
@@ -164,6 +313,7 @@ adding_entry:
   tmp_inode_reg->mtime = now;
 
   // setting the new inode
+  sb_cached = tmp_sb_cached;
   tmp_inode_reg[f_inode].mode = htole32(0x07);
   tmp_inode_reg[f_inode].blocks = htole32(0);
   tmp_inode_reg[f_inode].atime = tmp_inode_reg[f_inode].ctime =
@@ -181,6 +331,11 @@ adding_entry:
   //     printf("%2hu\t\t%s\n", data_reg[offset].files[i-16*offset].inode,
   //     data_reg[offset].files[i-16*offset].filename);
   // }
+
+  __alloc_block(tmp_inode_reg, tmp_data_reg, f_inode, block_num);
+  sb_cached = NULL;
+  tmp_inode_reg[f_inode].blocks = htole32(block_num);
+  tmp_inode_reg[f_inode].size = htole32(block_num*4096);
 
   shm_close(tmp_sb, tmp_fd);
   shm_close(tmp_sb_cached, tmp_fdc);
@@ -577,7 +732,7 @@ static int vsfs_stat(char *pathname, file_stat_t *fre) {
   }
   if (!find) {
     fre = NULL;
-    printf("vsfs_stat(): the filename not find in shm\n");
+    printf("vsfs_stat(): the filename not find in FS\n");
     goto not_find;
   }
 
@@ -728,130 +883,6 @@ static int _find_target_in_fdtable(int fildes, fd_table_t **target_fd,
   }
 
   return 0;
-}
-
-static int __alloc_block(struct vsfs_inode *inode_reg,
-                         struct vsfs_data_block *data_reg,
-                         op_ftable_t *target_op, uint32_t need_alloc) {
-  uint32_t count_down = need_alloc;
-  uint32_t real_blocks = inode_reg[target_op->inode_nr].blocks;
-  uint16_t start_block_l1 = 0;
-  uint16_t start_block_l2 = 0;
-  struct vsfs_pointer_block *ptr_reg;
-  struct vsfs_pointer_block *l3_ptr_reg;
-
-  // determine ptr level to use
-  if (inode_reg[target_op->inode_nr].blocks >= VSFS_LEVEL2_LIMIT) {
-    goto level3;
-  }
-  if (inode_reg[target_op->inode_nr].blocks >= VSFS_LEVEL1_LIMIT) {
-    goto level2;
-  }
-  if (SHOW_PROC)
-    printf(
-        "the level 1 inside flags is:\n"
-        "\ttotal blocks = %u\n"
-        "\treal_blocks = %u\n"
-        "\ttart_block_l2 = %u\n"
-        "\ttart_block_l1 = %u\n"
-        "\ttotal_needed_blocks = %u\n"
-        "\tcount_down = %u\n",
-        inode_reg[target_op->inode_nr].blocks, real_blocks, start_block_l2,
-        start_block_l1, need_alloc, count_down);
-
-  // adding new block to level 1
-  start_block_l1 = inode_reg[target_op->inode_nr].blocks;
-  for (uint16_t i = start_block_l1; i < VSFS_LEVEL1_LIMIT && count_down > 0;
-       i++, count_down--) {
-    inode_reg[target_op->inode_nr].l1[i] = get_free_dblock(sb_cached);
-    inode_reg[target_op->inode_nr].blocks++;
-  }
-  if (!count_down)
-    return 0;
-
-  // adding new block to level 2
-level2:
-
-  real_blocks = inode_reg[target_op->inode_nr].blocks;
-  real_blocks -= VSFS_LEVEL1_LIMIT;
-  start_block_l1 = real_blocks % 1024;
-  start_block_l2 = real_blocks / 1024;
-  if (SHOW_PROC)
-    printf(
-        "the level 2 inside flags is:\n"
-        "\ttotal blocks = %u\n"
-        "\treal_blocks = %u\n"
-        "\ttart_block_l2 = %u\n"
-        "\ttart_block_l1 = %u\n"
-        "\ttotal_needed_blocks = %u\n"
-        "\tcount_down = %u\n",
-        inode_reg[target_op->inode_nr].blocks, real_blocks, start_block_l2,
-        start_block_l1, need_alloc, count_down);
-
-  for (uint16_t i = start_block_l2; i < 5 && count_down > 0; i++) {
-    if (start_block_l1 == 0)
-      inode_reg[target_op->inode_nr].l2[i] = get_free_dblock(sb_cached);
-    ptr_reg = (struct vsfs_pointer_block *)&(
-        data_reg[inode_reg[target_op->inode_nr].l2[i]]);
-    for (uint16_t j = start_block_l1;
-         j < VSFS_POINTER_PER_BLOCK && count_down > 0; j++, count_down--) {
-      ptr_reg->__pointer[j] = get_free_dblock(sb_cached);
-      inode_reg[target_op->inode_nr].blocks++;
-    }
-    start_block_l1 = 0;
-  }
-
-  if (!count_down)
-    return 0;
-
-level3:
-  real_blocks = inode_reg[target_op->inode_nr].blocks;
-  real_blocks -= VSFS_LEVEL2_LIMIT;
-  start_block_l1 = real_blocks % 1024;
-  start_block_l2 = real_blocks / 1024;
-  if (SHOW_PROC)
-    printf(
-        "the level 3 inside flags is:\n"
-        "\ttarget_op->offset = %lu\n"
-        "\ttotal blocks = %u\n"
-        "\treal_blocks = %u\n"
-        "\ttart_block_l2 = %u\n"
-        "\ttart_block_l1 = %u\n"
-        "\ttotal_needed_blocks = %u\n"
-        "\tcount_down = %u\n",
-        target_op->offset, inode_reg[target_op->inode_nr].blocks, real_blocks,
-        start_block_l2, start_block_l1, need_alloc, count_down);
-
-  if (real_blocks == 0) {
-    inode_reg[target_op->inode_nr].l3[0] = get_free_dblock(sb_cached);
-    if (SHOW_PROC)
-      printf("l3_dblock = %u\n", inode_reg[target_op->inode_nr].l3[0]);
-  }
-
-  l3_ptr_reg = (struct vsfs_pointer_block *)&(
-      data_reg[inode_reg[target_op->inode_nr].l3[0]]);
-  for (uint16_t i = start_block_l2; i < 1024 && count_down > 0; i++) {
-    if (start_block_l1 == 0) {
-      l3_ptr_reg->__pointer[i] = get_free_dblock(sb_cached);
-      if (SHOW_PROC)
-        printf("l2_dblock = %u\n", l3_ptr_reg->__pointer[i]);
-    }
-    ptr_reg =
-        (struct vsfs_pointer_block *)&(data_reg[l3_ptr_reg->__pointer[i]]);
-    for (uint16_t j = start_block_l1;
-         j < VSFS_POINTER_PER_BLOCK && count_down > 0; j++, count_down--) {
-      ptr_reg->__pointer[j] = get_free_dblock(sb_cached);
-      if (SHOW_PROC)
-        printf("l1_dblock = %u\n", ptr_reg->__pointer[j]);
-      inode_reg[target_op->inode_nr].blocks++;
-    }
-    start_block_l1 = 0;
-  }
-
-  if (!count_down)
-    return 0;
-
-  return 1;
 }
 
 static int __attribute__((unused))
@@ -1186,7 +1217,7 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
   }
 
   if (inode_reg[target_op->inode_nr].blocks <= total_needed_blocks)
-    __alloc_block(inode_reg, data_reg, target_op,
+    __alloc_block(inode_reg, data_reg, target_op->inode_nr,
                   total_needed_blocks - inode_reg[target_op->inode_nr].blocks);
 
   // __return_block(inode_reg, data_reg, target_op, nbyte);
@@ -1522,7 +1553,7 @@ static uint64_t vsfs_lseek(int fd, uint64_t offset, int whence) {
         if (offset % VSFS_BLOCK_SIZE)
           total_needed_blocks++;
         __alloc_block(
-            inode_reg, data_reg, target_op,
+            inode_reg, data_reg, target_op->inode_nr,
             total_needed_blocks - inode_reg[target_op->inode_nr].blocks);
         inode_reg[target_op->inode_nr].size +=
             offset - inode_reg[target_op->inode_nr].size;

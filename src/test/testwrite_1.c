@@ -11,7 +11,7 @@ int main(int argc, char **argv) {
 
   FILE *fp = fopen("./src/test/testdata.txt", "r");
 
-  vsfs_creat("test");
+  vsfs_creat("test", 0);
 
   fd = vsfs_open("test", O_RDWR);
   if (fd == -1) {

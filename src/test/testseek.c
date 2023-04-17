@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
   int ret;
 
   file_stat_t* re = (file_stat_t*)malloc(sizeof(file_stat_t)); 
-  vsfs_creat("test");
+  vsfs_creat("test", 1048576);
   fd = vsfs_open("test", O_RDWR);
 
   for(int i=0;i<100;i++){

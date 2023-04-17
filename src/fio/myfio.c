@@ -53,7 +53,7 @@ static int myfio_setup(struct thread_data *td) {
   printf("------------------mounting   vsfs-------------------\n");
   mount_vsfs("vsfs");
   printf("--------------creating file in vsfs-----------------\n");
-  vsfs_creat("test");
+  vsfs_creat("test", 1048576);
   printf("-----------------starting fio-----------------------\n");
 
   return 0;
