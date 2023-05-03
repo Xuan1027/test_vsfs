@@ -8,7 +8,7 @@
  */
 
 /* spdk setting */
-#define NVME_ADDR "0000:02:00.0"
+#define NVME_ADDR "0000:01:00.0"
 #define IODEPTH 1
 #define QPAIR_COUNT 2
 typedef enum { IO_QUEUE, MG_QUEUE } queue_type;

@@ -25,17 +25,18 @@ static void test_func(queue_type type) {
     buf = alloc_dma_buffer(PAGE_SIZE);
     tmp = malloc(PAGE_SIZE);
     for (int i = 0; i < ROUND; i++) {
-        printf("\nROUND =\t%d\n",i);
+        // printf("\nROUND =\t%d\n",i);
         lba = rand() % MAX_LBA;
         sprintf(buf, "%d", rand() % 1000000);
         strcpy(tmp, buf);
-        printf("(tmp)randnum = %s\n", (char *)tmp);
+        // printf("(tmp)randnum = %s\n", (char *)tmp);
         write_spdk(buf, lba, 1, type);  // 寫進SSD
         memset(buf, 0, PAGE_SIZE);
         read_spdk(buf, lba, 1, type);  // 重新讀出來
-        printf("(buf)randnum = %s\n", (char *)buf);
-        trim_spdk(lba, 1, type);       // trim
+        // printf("(buf)randnum = %s\n", (char *)buf);
+        // trim_spdk(lba, 1, type);       // trim
         if (strcmp(buf, tmp)) {        // 比較
+            printf("\nROUND =\t%d\n",i);
             printf("===================\n"
                    "|    TEST FAIL    |\n"
                    "===================\n");

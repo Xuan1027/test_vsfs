@@ -9,9 +9,9 @@ include $(SPDK_ROOT_DIR)/mk/spdk.common.mk
 include $(SPDK_ROOT_DIR)/mk/spdk.modules.mk
 
 # share library
-FIO_PLUGIN := spdkapi
+FIO_PLUGIN := myfio
 
-C_SRCS = spdk.c
+C_SRCS = spdk.c myfio.c
 
 SPDK_LIB_LIST = $(SOCK_MODULES_LIST) nvme vmd
 
@@ -21,4 +21,6 @@ example:
 	$(CC) example.c $(SPDK_ROOT_DIR)/build/fio/spdkapi -o example
 test:
 	$(CC) -c vsfs_init.c -o vsfs_init.o
-	$(CC) test_vsfs_init.c vsfs_init.o $(SPDK_ROOT_DIR)/build/fio/spdkapi -o test_vsfs_init
+	$(CC) -g test_vsfs_init.c vsfs_init.o $(SPDK_ROOT_DIR)/build/fio/spdkapi -o test_vsfs_init
+	$(CC) -g testcreat.c vsfs_init.o $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testcreat
+	$(CC) -g testfs.c $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testfs

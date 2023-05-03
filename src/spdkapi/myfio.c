@@ -1,12 +1,12 @@
 #include "config-host.h"
 #include "fio.h"
 #include "optgroup.h"
-#include "vsfs.h"
-#include "vsfs_bitmap.h"
-#include "vsfs_init.c"
-#include "vsfs_shmfunc.h"
-#include "vsfs_stdinc.h"
-#include "vsfsio.h"
+#include "../inc/vsfs.h"
+#include "../inc/vsfs_bitmap.h"
+#include "../inc/vsfs_init.c"
+#include "../inc/vsfs_shmfunc.h"
+#include "../inc/vsfs_stdinc.h"
+#include "vsfsio_spdk.h"
 
 #include "spdk.h"
 
@@ -15,7 +15,6 @@ static int vsfs_init(struct thread_data *td) {
 }
 
 static void vsfs_cleanup(struct thread_data *td) {
-  exit_spdk();
 }
 
 static int
@@ -87,4 +86,5 @@ static void fio_init spdk_fio_register(void) { register_ioengine(&ioengine); }
 
 static void fio_exit spdk_fio_unregister(void) {
   unregister_ioengine(&ioengine);
+  exit_spdk();
 }

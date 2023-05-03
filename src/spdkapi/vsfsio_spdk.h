@@ -311,9 +311,14 @@ adding_entry:
   if (SHOW_PROC)
     printf("vsfs_creat(): setting the new inode\n");
   // writing the data block entry
-  tmp_dir_reg[f_dblock].files[d_entry].inode = f_inode;
-  memcpy(tmp_dir_reg[f_dblock].files[d_entry].filename, name, strlen(name) + 1);
+  read_spdk(tmp_dir_reg, tmp_sb_cached->sbi.ofs_dregion + f_dblock, 1, IO_QUEUE);
+  tmp_dir_reg->files[d_entry].inode = f_inode;
+  // memcpy(tmp_dir_reg[f_dblock].files[d_entry].filename, name, strlen(name) + 1);
+  memcpy(tmp_dir_reg->files[d_entry].filename, name, strlen(name) + 1);
+  write_spdk(tmp_dir_reg, tmp_sb_cached->sbi.ofs_dregion + f_dblock, 1, IO_QUEUE);
+
   tmp_inode_reg->entry++;
+
   free(name);
 
   // getting the time at this moment
@@ -321,14 +326,16 @@ adding_entry:
   time(&now);
   tmp_inode_reg->atime = now;
   tmp_inode_reg->mtime = now;
+  write_spdk(tmp_inode_reg, tmp_sb_cached->sbi.ofs_iregion, 1, IO_QUEUE);
 
+  read_spdk(tmp_inode_reg, tmp_sb_cached->sbi.ofs_iregion + (f_inode/16) , 1, IO_QUEUE);
   // setting the new inode
   sb_cached = tmp_sb_cached;
-  tmp_inode_reg[f_inode].mode = htole32(0x07);
-  tmp_inode_reg[f_inode].blocks = htole32(0);
-  tmp_inode_reg[f_inode].atime = tmp_inode_reg[f_inode].ctime =
-      tmp_inode_reg[f_inode].mtime = now;
-  tmp_inode_reg[f_inode].size = htole32(0);
+  tmp_inode_reg[f_inode%16].mode = htole32(0x07);
+  tmp_inode_reg[f_inode%16].blocks = htole32(0);
+  tmp_inode_reg[f_inode%16].atime = tmp_inode_reg[f_inode%16].ctime =
+      tmp_inode_reg[f_inode%16].mtime = now;
+  tmp_inode_reg[f_inode%16].size = htole32(0);
 
   // print all of the / dir
   // printf("the contain of the / dir is:\n");
@@ -342,10 +349,12 @@ adding_entry:
   //     data_reg[offset].files[i-16*offset].filename);
   // }
 
-  __alloc_block(tmp_inode_reg, tmp_sb_cached->sbi.ofs_dregion, f_inode, block_num);
+  __alloc_block(tmp_inode_reg, tmp_sb_cached->sbi.ofs_dregion, f_inode%16, block_num);
   sb_cached = NULL;
-  tmp_inode_reg[f_inode].blocks = htole32(block_num);
-  tmp_inode_reg[f_inode].size = htole32(block_num*4096);
+  tmp_inode_reg[f_inode%16].blocks = htole32(block_num);
+  tmp_inode_reg[f_inode%16].size = htole32(block_num*4096);
+  
+  write_spdk(tmp_inode_reg, tmp_sb_cached->sbi.ofs_iregion + (f_inode/16) , 1, IO_QUEUE);
 
   // shm_close(tmp_sb, tmp_fd);
   shm_close(tmp_sb_cached, tmp_fdc);
@@ -559,16 +568,21 @@ static int vsfs_open(char *pathname, int flags) {
   time(&now);
   if (flags == O_RDONLY) {
     fd_table->tail->flags = O_RDONLY;
-    for (path_t *tmp = fd_table->tail->p_head; tmp; tmp = tmp->next)
+    for (path_t *tmp = fd_table->tail->p_head; tmp; tmp = tmp->next){
+      read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode, 1, IO_QUEUE);
       inode_reg[tmp->inode].atime = now;
+      write_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode, 1, IO_QUEUE);
+    }
   } else if (flags == O_WRONLY || flags == O_RDWR) {
     if (flags == O_WRONLY)
       fd_table->tail->flags = O_WRONLY;
     else if (flags == O_RDWR)
       fd_table->tail->flags = O_RDWR;
     for (path_t *tmp = fd_table->tail->p_head; tmp; tmp = tmp->next) {
+      read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode, 1, IO_QUEUE);
       inode_reg[tmp->inode].atime = now;
       inode_reg[tmp->inode].mtime = now;
+      write_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode, 1, IO_QUEUE);
     }
   }
 
@@ -1200,12 +1214,13 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
   size_t written;
   int ret = _find_target_in_fdtable(fildes, &target_fd, &target_op);
   op_ftable_t *op_ftable = (op_ftable_t *)(op_counter + 1);
-  struct vsfs_inode *inode_reg =
-      (struct vsfs_inode *)((char *)sb +
-                            sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
-  struct vsfs_data_block *data_reg =
-      (struct vsfs_data_block *)((char *)sb +
-                                 sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
+  struct vsfs_inode *inode_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  
+      // (struct vsfs_inode *)((char *)sb +
+      //                       sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
+  // struct vsfs_data_block *data_reg =
+  //     (struct vsfs_data_block *)((char *)sb +
+  //                                sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
 
   uint32_t total_needed_blocks = (target_op->offset + nbyte) / VSFS_BLOCK_SIZE;
   if ((target_op->offset + nbyte) % VSFS_BLOCK_SIZE)
@@ -1265,9 +1280,10 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
     goto err_exit;
   }
 
-  if (inode_reg[target_op->inode_nr].blocks <= total_needed_blocks)
-    __alloc_block(inode_reg, data_reg, target_op->inode_nr,
-                  total_needed_blocks - inode_reg[target_op->inode_nr].blocks);
+  read_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr/16,1,IO_QUEUE);
+  if (inode_reg[target_op->inode_nr%16].blocks <= total_needed_blocks)
+    __alloc_block(inode_reg, sb_cached->sbi.ofs_dregion, target_op->inode_nr%16,
+                  total_needed_blocks - inode_reg[target_op->inode_nr%16].blocks);
 
   // __return_block(inode_reg, data_reg, target_op, nbyte);
 
@@ -1275,15 +1291,16 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
     printf("vsfs_write(): modify the inode of a,mtime\n");
   time_t now;
   time(&now);
-  inode_reg[target_op->inode_nr].atime = now;
-  inode_reg[target_op->inode_nr].mtime = now;
+  inode_reg[target_op->inode_nr%16].atime = now;
+  inode_reg[target_op->inode_nr%16].mtime = now;
 
   written = __write_dblock(sb_cached->sbi.ofs_iregion, sb_cached->sbi.ofs_dregion, target_op, nbyte, buf);
 
-  inode_reg[target_op->inode_nr].size = target_op->offset;
-
+  inode_reg[target_op->inode_nr%16].size = target_op->offset;
+  write_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr/16,1,IO_QUEUE);
+  
+  free_dma_buffer(inode_reg);
   return written;
-
 err_exit:
   return -1;
 }
