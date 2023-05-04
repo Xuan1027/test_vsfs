@@ -242,14 +242,15 @@ static int vsfs_creat(const char *file_name, uint32_t block_num) {
   // tmp_dir_reg =
   //     (struct vsfs_dir_block *)((char *)tmp_sb +
   //                               tmp_sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
-  read_spdk(tmp_dir_reg, tmp_sb_cached->sbi.ofs_dregion, 1, IO_QUEUE);
+  // read_spdk(tmp_dir_reg, tmp_sb_cached->sbi.ofs_dregion, 1, IO_QUEUE);
   // tmp_data_reg =
   //     (struct vsfs_data_block *)((char *)tmp_sb +
   //                                tmp_sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
-  read_spdk(tmp_data_reg, tmp_sb_cached->sbi.ofs_dregion, 1, IO_QUEUE);
+  // read_spdk(tmp_data_reg, tmp_sb_cached->sbi.ofs_dregion, 1, IO_QUEUE);
 
   // need to find if there have same file_name
   for (uint32_t i = 0; i <= tmp_inode_reg->entry / 16; i++) {
+    read_spdk(tmp_dir_reg, tmp_sb_cached->sbi.ofs_dregion + tmp_inode_reg->l1[i], 1, IO_QUEUE);
     if (i == tmp_inode_reg->entry / 16)
       entry_limit = tmp_inode_reg->entry - i * 16;
     else
@@ -260,10 +261,10 @@ static int vsfs_creat(const char *file_name, uint32_t block_num) {
         printf(
             "file_name = %s\n"
             "name = %s\n",
-            tmp_dir_reg[i].files[j].filename, name);
+            tmp_dir_reg->files[j].filename, name);
       }
 
-      if (!strcmp(tmp_dir_reg[i].files[j].filename, name)) {
+      if (!strcmp(tmp_dir_reg->files[j].filename, name)) {
         printf("ERR: in vsfs_creat(): you have the same file_name in FS\n");
         goto sup_cached_err_exit;
       }

@@ -1,12 +1,12 @@
 [global]
 name=test
 filename=test
-rw=randread
+rw=randwrite
 bs=4K
 direct=0
 numjobs=1
 time_based
-runtime=3
+runtime=10
 
 [file1]
 size=1G
