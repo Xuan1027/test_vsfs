@@ -25,7 +25,7 @@ very simple file system
 
 | index | type    | mapping size        |
 |:-----:| ------- | ------------------- |
-|  0~48 | 1 level | 19x4K=76KB          |
+|  0~48 | 1 level | 49x4K=196KB         |
 | 49~53 | 2 level | 5x1024x4KB=20MB     |
 |    54 | 3 level | 1x1024x1024x4KB=4GB |
 

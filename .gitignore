@@ -3,5 +3,10 @@ obj
 output
 src/fio/test
 myfio
+src/spdkapi/*
+!/src/spdkapi/*.c
+!/src/spdkapi/*.h
+!/src/spdkapi/*.txt
+!/src/spdkapi/*.fio
 *.d
 *.o
