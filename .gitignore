@@ -8,5 +8,6 @@ src/spdkapi/*
 !/src/spdkapi/*.h
 !/src/spdkapi/*.txt
 !/src/spdkapi/*.fio
+!/src/spdkapi/Makefile
 *.d
 *.o
