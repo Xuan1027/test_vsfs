@@ -5,9 +5,14 @@ bs=4K
 direct=0
 numjobs=1
 time_based
-runtime=10
+runtime=3
 
 [file1]
 size=1G
+<<<<<<< HEAD
 ioengine=/home/hoshinomori/vsfs/spdk/build/fio/myfio
 iodepth=1
+=======
+ioengine=myfio
+iodepth=16
+>>>>>>> parent of 2050f59 (spdkapi fix vsfs_creat)
