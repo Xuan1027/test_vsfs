@@ -13,16 +13,27 @@
 int main(int argc, char** argv) {
   init_spdk();
 
-  char* fname = (char*)malloc(VSFS_FILENAME_LEN);
+  // char* fname = (char*)malloc(VSFS_FILENAME_LEN);
+  // sprintf(fname,"test");
+  // int ret = vsfs_creat(fname, 1048576);
+  // if(ret == -1){
+    // return ret;
+  // }
+
   // for (int i = 1; i <= 782; i++) {
-  for (int i = 1; i <= 782; i++) {
-    sprintf(fname, "%03d", i);
-    int ret = vsfs_creat(fname, 0);
-    if (ret == -1) {
-      return -1;
-    }
-  }
-  free(fname);
+  // for (int i = 1; i <= 782; i++) {
+  //   sprintf(fname, "%03d", i);
+  //   int ret = vsfs_creat(fname, 0);
+  //   if (ret == -1) {
+  //     return -1;
+  //   }
+  // }
+  int fd = vsfs_open("test", O_RDWR);
+
+  // printf("fd = %d\n",fd);
+  vsfs_print_block_nbr(fd);
+  vsfs_close(fd);
+  // free(fname);
 
   exit_spdk();
   return 0;

@@ -3,12 +3,14 @@
 #include "optgroup.h"
 #include "../inc/vsfs.h"
 #include "../inc/vsfs_bitmap.h"
-#include "../inc/vsfs_init.c"
 #include "../inc/vsfs_shmfunc.h"
 #include "../inc/vsfs_stdinc.h"
 #include "vsfsio_spdk.h"
+#include "vsfs_init.h"
 
 #include "spdk.h"
+#include <stddef.h>
+#include <stdio.h>
 
 static int vsfs_init(struct thread_data *td) {
   return 0;
@@ -20,7 +22,8 @@ static void vsfs_cleanup(struct thread_data *td) {
 static int
 vsfs_fio_open(struct thread_data *td, struct fio_file *f)
 {
-  f->fd = vsfs_open(f->file_name, O_RDWR);
+  printf("vsfs_fio_open:f->file_name = %s\n", f->file_name);
+  f->fd = vsfs_open("test", O_RDWR);
 	return 0;
 }
 
@@ -36,11 +39,11 @@ static enum fio_q_status vsfs_queue(struct thread_data *td,
                                      struct io_u *io_u) {
   switch (io_u->ddir) {
     case DDIR_READ:
-      vsfs_lseek(io_u->file->fd, io_u->offset, SEEK_SET);
+      // vsfs_lseek(io_u->file->fd, io_u->offset, SEEK_SET);
       vsfs_read(io_u->file->fd, io_u->xfer_buf, io_u->xfer_buflen);
       break;
     case DDIR_WRITE:
-      vsfs_lseek(io_u->file->fd, io_u->offset, SEEK_SET);
+      // vsfs_lseek(io_u->file->fd, io_u->offset, SEEK_SET);
       vsfs_write(io_u->file->fd, io_u->xfer_buf, io_u->xfer_buflen);
       break;
     default:
@@ -70,6 +73,15 @@ static int vsfs_getevents(struct thread_data *td, unsigned int min,
 
 static struct io_u *vsfs_event(struct thread_data *td, int event) { return 0; }
 
+static int vsfs_alloc(struct thread_data *td, size_t size){
+  td->orig_buffer = alloc_dma_buffer(size);
+  return td->orig_buffer == NULL;
+}
+
+static void vsfs_free(struct thread_data *td){
+  free_dma_buffer(td->orig_buffer);
+}
+
 /* FIO imports this structure using dlsym */
 struct ioengine_ops ioengine = {.name = "myfio",
                                 .version = FIO_IOOPS_VERSION,
@@ -78,9 +90,12 @@ struct ioengine_ops ioengine = {.name = "myfio",
                                 .queue = vsfs_queue,
                                 .getevents = vsfs_getevents,
                                 .event = vsfs_event,
+	                              .iomem_alloc = vsfs_alloc,
+                              	.iomem_free	= vsfs_free,
                                 .open_file = vsfs_fio_open,
                                 .close_file = vsfs_fio_close,
-                                .cleanup = vsfs_cleanup};
+                                .cleanup = vsfs_cleanup,
+                                };
 
 static void fio_init spdk_fio_register(void) { register_ioengine(&ioengine); }
 

@@ -1,5 +1,5 @@
 [global]
-ioengine=/home/xuan/vsfs/src/fio/myfio
+ioengine=/home/hoshinomori/vsfs/spdk/build/fio/myfio
 
 thread=1
 group_reporting=1
@@ -12,4 +12,4 @@ filename=test
 iodepth=1
 
 [test_file]
-size=4G
+size=1G

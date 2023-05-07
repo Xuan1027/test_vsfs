@@ -11,7 +11,7 @@ include $(SPDK_ROOT_DIR)/mk/spdk.modules.mk
 # share library
 FIO_PLUGIN := myfio
 
-C_SRCS = spdk.c myfio.c
+C_SRCS = spdk.c myfio.c vsfs_init.c
 
 SPDK_LIB_LIST = $(SOCK_MODULES_LIST) nvme vmd
 

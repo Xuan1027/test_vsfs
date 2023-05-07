@@ -1,7 +1,6 @@
 [global]
-name=test
 filename=test
-rw=randwrite
+rw=randread
 bs=4K
 direct=0
 numjobs=1
@@ -10,5 +9,5 @@ runtime=10
 
 [file1]
 size=1G
-ioengine=myfio
-iodepth=16
+ioengine=/home/hoshinomori/vsfs/spdk/build/fio/myfio
+iodepth=1
