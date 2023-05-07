@@ -21,7 +21,6 @@ int main(int argc, char** argv) {
   // }
 
   // for (int i = 1; i <= 782; i++) {
-<<<<<<< HEAD
   // for (int i = 1; i <= 782; i++) {
   //   sprintf(fname, "%03d", i);
   //   int ret = vsfs_creat(fname, 0);
@@ -35,16 +34,6 @@ int main(int argc, char** argv) {
   vsfs_print_block_nbr(fd);
   vsfs_close(fd);
   // free(fname);
-=======
-  for (int i = 1; i <= 50; i++) {
-    sprintf(fname, "%03d", i);
-    int ret = vsfs_creat(fname, 0);
-    if (ret == -1) {
-      return -1;
-    }
-  }
-  free(fname);
->>>>>>> parent of 2050f59 (spdkapi fix vsfs_creat)
 
   exit_spdk();
   return 0;

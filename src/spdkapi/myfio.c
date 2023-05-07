@@ -39,11 +39,11 @@ static enum fio_q_status vsfs_queue(struct thread_data *td,
                                      struct io_u *io_u) {
   switch (io_u->ddir) {
     case DDIR_READ:
-      // vsfs_lseek(io_u->file->fd, io_u->offset, SEEK_SET);
+      vsfs_lseek(io_u->file->fd, io_u->offset, SEEK_SET);
       vsfs_read(io_u->file->fd, io_u->xfer_buf, io_u->xfer_buflen);
       break;
     case DDIR_WRITE:
-      // vsfs_lseek(io_u->file->fd, io_u->offset, SEEK_SET);
+      vsfs_lseek(io_u->file->fd, io_u->offset, SEEK_SET);
       vsfs_write(io_u->file->fd, io_u->xfer_buf, io_u->xfer_buflen);
       break;
     default:

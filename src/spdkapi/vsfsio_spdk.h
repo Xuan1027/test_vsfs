@@ -1105,9 +1105,17 @@ static size_t __write_dblock(unsigned long inode_reg_offset,
   // offset?
     if(write_length!=VSFS_BLOCK_SIZE){
       read_spdk(dma_buf, data_reg_offset + inode_reg[target_op->inode_nr % 16].l1[i], 1, IO_QUEUE);
+      memcpy(dma_buf+offset, buf + written, write_length);
+      write_spdk(dma_buf, data_reg_offset + inode_reg[target_op->inode_nr % 16].l1[i], 1, IO_QUEUE);
+    } else {
+      write_spdk(buf + written, data_reg_offset + inode_reg[target_op->inode_nr % 16].l1[i], 1, IO_QUEUE);
     }
-    memcpy(dma_buf+offset, buf + written, write_length);
-    write_spdk(dma_buf, data_reg_offset + inode_reg[target_op->inode_nr % 16].l1[i], 1, IO_QUEUE);
+    // if(inode_reg[target_op->inode_nr % 16].l1[i]==0){
+    //   printf("!!! L1 write the root dir_block !!!\n");
+    //   printf("target_op->inode_nr = %d\n", target_op->inode_nr);
+    //   printf("i = %d\n",i);
+    // }
+    
     // memcpy(
     //     (char *)(data_reg[inode_reg[target_op->inode_nr].l1[i]].data) + offset,
     //     (char *)buf + written, write_length);
@@ -1157,9 +1165,19 @@ write_level_2:
             "\tdata_reg = %u\n",
             target_op->offset, real_blocks, j, i, offset, nbyte, left, written,
             write_length, ptr_reg->__pointer[j]);
-      read_spdk(dma_buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
-      memcpy(dma_buf + offset, buf + written, write_length);
-      write_spdk(dma_buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
+      if(write_length!=VSFS_BLOCK_SIZE){
+        read_spdk(dma_buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
+        memcpy(dma_buf + offset, buf + written, write_length);
+        write_spdk(dma_buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
+      } else {
+        write_spdk(buf + written, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
+      }
+      // if(ptr_reg->__pointer[j]==0){
+      //   printf("!!! L2 write the root dir_block !!!\n");
+      //   printf("target_op->inode_nr = %d\n", target_op->inode_nr);
+      //   printf("inode_reg[target_op->inode_nr % 16].l2[i] = %d\n", inode_reg[target_op->inode_nr % 16].l2[i]);
+      //   printf("i = %d\n",i);
+      // }
       // memcpy((char *)(data_reg[ptr_reg->__pointer[j]].data) + offset,
       //        (char *)buf + written, write_length);
       written += write_length;
@@ -1212,10 +1230,20 @@ write_level_3:
             "\tdata_reg = %u\n",
             target_op->offset, real_blocks, j, i, offset, nbyte, left, written,
             write_length, ptr_reg->__pointer[j]);
+      if(write_length!=VSFS_BLOCK_SIZE){
+        read_spdk(dma_buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
+        memcpy(dma_buf + offset, buf + written, write_length);
+        write_spdk(dma_buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
+      } else {
+        write_spdk(buf + written, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
+      }
+      // if(ptr_reg->__pointer[j]==0){
+      //   printf("!!! L2 write the root dir_block !!!\n");
+      //   printf("target_op->inode_nr = %d\n", target_op->inode_nr);
+      //   printf("inode_reg[target_op->inode_nr % 16].l3[i] = %d\n", inode_reg[target_op->inode_nr % 16].l3[0]);
 
-      read_spdk(dma_buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
-      memcpy(dma_buf + offset, buf + written, write_length);
-      write_spdk(dma_buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
+      //   printf("i = %d\n",i);
+      // }
 
       // memcpy((char *)(data_reg[ptr_reg->__pointer[j]].data) + offset,
       //        (char *)buf + written, write_length);
@@ -1319,10 +1347,11 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
   }
 
   read_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr/16,1,IO_QUEUE);
-  if (inode_reg[target_op->inode_nr%16].blocks <= total_needed_blocks)
+  if (inode_reg[target_op->inode_nr%16].blocks <= total_needed_blocks){
     __alloc_block(inode_reg, sb_cached->sbi.ofs_dregion, target_op->inode_nr%16,
                   total_needed_blocks - inode_reg[target_op->inode_nr%16].blocks);
-
+    write_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr/16,1,IO_QUEUE);
+  }
   // __return_block(inode_reg, data_reg, target_op, nbyte);
 
   if (SHOW_PROC)
@@ -1358,7 +1387,7 @@ static int64_t __read_dblock(unsigned long inode_reg_offset,
   uint16_t start_block_l2;
 
   void* dma_buf = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_pointer_block *l3_ptr_reg;
+  struct vsfs_pointer_block *l3_ptr_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   struct vsfs_pointer_block *ptr_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   struct vsfs_inode *inode_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   read_spdk(inode_reg, inode_reg_offset + target_op->inode_nr / 16 , 1, IO_QUEUE);
@@ -1424,9 +1453,9 @@ static int64_t __read_dblock(unsigned long inode_reg_offset,
           i, offset, nbyte, left, readed, read_length);
 
     // printf("before read_spdk\n");
-    read_spdk(dma_buf, data_reg_offset + inode_reg[target_op->inode_nr % 16].l1[i], 1, IO_QUEUE);
+    read_spdk(buf, data_reg_offset + inode_reg[target_op->inode_nr % 16].l1[i], 1, IO_QUEUE);
     // printf("after read_spdk\n");
-    memcpy(buf + readed, dma_buf + offset, read_length);
+    // memcpy(buf + readed, dma_buf + offset, read_length);
     // printf("after memcpy\n");
     // memcpy(
     //     (char *)buf + readed,
@@ -1476,8 +1505,8 @@ read_level_2:
             "\tdata_reg = %u\n",
             target_op->offset, real_blocks, j, i, offset, nbyte, left, readed,
             read_length, ptr_reg->__pointer[j]);
-      read_spdk(dma_buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
-      memcpy(buf + readed, dma_buf + offset, read_length);
+      read_spdk(buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
+      // memcpy(buf + readed, dma_buf + offset, read_length);
       // memcpy((char *)buf + readed,
       //        (char *)(data_reg[ptr_reg->__pointer[j]].data) + offset,
       //        read_length);
@@ -1532,8 +1561,8 @@ read_level_3:
             target_op->offset, real_blocks, j, i, offset, nbyte, left, readed,
             read_length, ptr_reg->__pointer[j]);
 
-      read_spdk(dma_buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
-      memcpy(buf + readed, dma_buf + offset, read_length);
+      read_spdk(buf, data_reg_offset + ptr_reg->__pointer[j], 1, IO_QUEUE);
+      // memcpy(buf + readed, dma_buf + offset, read_length);
       // memcpy((char *)buf + readed,
       //        (char *)(data_reg[ptr_reg->__pointer[j]].data) + offset,
       //        read_length);

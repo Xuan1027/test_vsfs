@@ -24,3 +24,4 @@ test:
 	$(CC) -g test_vsfs_init.c vsfs_init.o $(SPDK_ROOT_DIR)/build/fio/spdkapi -o test_vsfs_init
 	$(CC) -g testcreat.c vsfs_init.o $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testcreat
 	$(CC) -g testfs.c $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testfs
+	$(CC) -g testwrite_2.c vsfs_init.o $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testwrite_2
