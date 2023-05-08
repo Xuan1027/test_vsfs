@@ -1,6 +1,6 @@
 [global]
 filename=test
-rw=randread
+rw=randrw
 bs=4K
 direct=0
 numjobs=1

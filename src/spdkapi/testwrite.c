@@ -8,13 +8,14 @@
 
 int main(){
   init_spdk();
-
+  
+  vsfs_creat("test", 0);
   int fd = vsfs_open("test", O_RDWR);
 
   char *writebuf = alloc_dma_buffer(13), *readbuf = alloc_dma_buffer(13);
 
   sprintf(writebuf, "hello world!");
-  vsfs_lseek(fd, 0, SEEK_SET);
+  // vsfs_lseek(fd, 0, SEEK_SET);
   vsfs_write(fd, writebuf, 13);
 
   vsfs_lseek(fd, 0, SEEK_SET);

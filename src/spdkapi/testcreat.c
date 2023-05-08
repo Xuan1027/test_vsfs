@@ -13,12 +13,13 @@
 int main(int argc, char** argv) {
   init_spdk();
 
-  // char* fname = (char*)malloc(VSFS_FILENAME_LEN);
-  // sprintf(fname,"test");
-  // int ret = vsfs_creat(fname, 1048576);
-  // if(ret == -1){
+  char* fname = (char*)malloc(VSFS_FILENAME_LEN);
+  sprintf(fname,"test");
+  int ret = vsfs_creat(fname, 1048576);
+  if(ret == -1){
     // return ret;
-  // }
+    printf("already exist\n");
+  }
 
   // for (int i = 1; i <= 782; i++) {
   // for (int i = 1; i <= 782; i++) {

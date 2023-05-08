@@ -58,6 +58,20 @@ struct superblock *sb = NULL;
 struct vsfs_cached_data *sb_cached = NULL;
 unsigned short *op_counter = NULL;
 
+#define at_tmp_base(ptr, position)\
+ ptr = (typeof(ptr))(tmp_base_ptr + position)
+
+struct vsfs_data_block *tmp_base_ptr;
+struct superblock *tmp_sb;
+struct vsfs_inode *tmp_inode_reg;
+struct vsfs_dir_block *tmp_data_reg;
+struct vsfs_dir_block *tmp_dir_reg;
+struct vsfs_pointer_block *ptr_reg;
+struct vsfs_pointer_block *l3_ptr_reg;
+struct vsfs_inode *inode_reg;
+struct vsfs_dir_block *data_reg;
+void *dma_buf;
+
 static int vsfs_creat(const char *file_name, uint32_t block_num) __attribute__((unused));
 static int vsfs_stat(char *pathname, file_stat_t *fre) __attribute__((unused));
 static int vsfs_open(char *pathname, int flags) __attribute__((unused));
@@ -76,10 +90,10 @@ static int __alloc_block(struct vsfs_inode *inode_reg,
   uint32_t real_blocks = inode_reg[inode_nr].blocks;
   uint16_t start_block_l1 = 0;
   uint16_t start_block_l2 = 0;
-  struct vsfs_pointer_block *ptr_reg = 
-    (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_pointer_block *l3_ptr_reg = 
-    (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_pointer_block *ptr_reg = 
+  //   (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_pointer_block *l3_ptr_reg = 
+  //   (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
   // determine ptr level to use
   if (inode_reg[inode_nr].blocks >= VSFS_LEVEL2_LIMIT) {
     goto level3;
@@ -198,9 +212,26 @@ level3:
 
   return 1;
 free_dma:
-  free_dma_buffer(ptr_reg);
-  free_dma_buffer(l3_ptr_reg);
+  // free_dma_buffer(ptr_reg);
+  // free_dma_buffer(l3_ptr_reg);
   return 0;
+}
+/*
+  tmp_inode_reg, tmp_data_reg, tmp_dir_reg, ptr_reg, l3_ptr_reg, inode_reg, data_reg
+*/
+static void init_base_ptr(){
+  tmp_base_ptr = alloc_dma_buffer(VSFS_BLOCK_SIZE*10);
+  at_tmp_base(sb, 0);
+  read_spdk(sb, 0, 1, IO_QUEUE);
+  at_tmp_base(tmp_sb, 1);
+  at_tmp_base(tmp_inode_reg, 2);
+  at_tmp_base(tmp_data_reg, 3);
+  at_tmp_base(tmp_dir_reg, 4);
+  at_tmp_base(ptr_reg, 5);
+  at_tmp_base(l3_ptr_reg, 6);
+  at_tmp_base(inode_reg, 7);
+  at_tmp_base(data_reg, 8);
+  at_tmp_base(dma_buf, 9);
 }
 
 /**
@@ -209,16 +240,20 @@ free_dma:
  */
 static int vsfs_creat(const char *file_name, uint32_t block_num) {
   int tmp_fd, tmp_fdc;
-  // struct superblock *tmp_sb = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   uint32_t f_inode, f_dblock, d_entry;
   uint16_t entry_limit;
   struct vsfs_cached_data *tmp_sb_cached;
-  struct vsfs_inode *tmp_inode_reg = 
-    (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_dir_block *tmp_dir_reg =
-    (struct vsfs_dir_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_data_block *tmp_data_reg =
-    (struct vsfs_data_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  if(tmp_base_ptr==NULL)
+    init_base_ptr();
+  
+  // tmp_sb = 
+  //   (struct superblock *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // tmp_inode_reg = 
+  //   (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // tmp_dir_reg =
+  //   (struct vsfs_dir_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // tmp_data_reg =
+  //   (struct vsfs_data_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
   char *name;
 
   if (SHOW_PROC)
@@ -379,12 +414,13 @@ sup_cached_err_exit:
 sb_err_exit:
   // shm_close(tmp_sb, tmp_fd);
   free(name);
-  free_dma_buffer(tmp_inode_reg);
-  free_dma_buffer(tmp_dir_reg);
-  free_dma_buffer(tmp_data_reg);
+  // free_dma_buffer(tmp_inode_reg);
+  // free_dma_buffer(tmp_dir_reg);
+  // free_dma_buffer(tmp_data_reg);
 shm_err_exit:
   return -1;
 }
+
 
 /**
  * open a file
@@ -398,13 +434,15 @@ static int vsfs_open(char *pathname, int flags) {
    * need to update the file's inode and the root's inode
    * list the path of the dir and prepare to modify the a,c,mtime
    */
+  if(tmp_base_ptr==NULL)
+    init_base_ptr();
 
   int ret = -1;
   op_ftable_t *op_ftable;
-  struct vsfs_inode *inode_reg = 
-    (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_dir_block *data_reg = 
-    (struct vsfs_dir_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_inode *inode_reg = 
+  //   (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_dir_block *data_reg = 
+  //   (struct vsfs_dir_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
   uint16_t target_inode;
   short inode_find = 0;
   short optab_find = 0;
@@ -433,7 +471,7 @@ static int vsfs_open(char *pathname, int flags) {
   if (!sb) {
     if (SHOW_PROC)
       printf("vsfs_open(): opening the disk(mem)\n");
-    sb = (struct superblock *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+    // sb = (struct superblock *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
     // sb = (struct superblock *)shm_oandm(SHM_NAME, O_RDWR,
     //                                     PROT_READ | PROT_WRITE, &fd);
     read_spdk(sb, 0, 1, IO_QUEUE);
@@ -455,7 +493,7 @@ static int vsfs_open(char *pathname, int flags) {
   read_spdk(inode_reg, sb_cached->sbi.ofs_iregion, 1, IO_QUEUE);
   // data_reg = (struct vsfs_dir_block *)((char *)sb +
   //                                      sb_cached->sbi.ofs_dregion * VSFS_BLOCK_SIZE);
-  read_spdk(data_reg, sb_cached->sbi.ofs_dregion, 1, IO_QUEUE);
+  // read_spdk(data_reg, sb_cached->sbi.ofs_dregion, 1, IO_QUEUE);
 
   if (SHOW_PROC)
     printf("vsfs_open(): check the fd_table\n");
@@ -587,9 +625,9 @@ static int vsfs_open(char *pathname, int flags) {
   if (flags == O_RDONLY) {
     fd_table->tail->flags = O_RDONLY;
     for (path_t *tmp = fd_table->tail->p_head; tmp; tmp = tmp->next){
-      read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode, 1, IO_QUEUE);
-      inode_reg[tmp->inode].atime = now;
-      write_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode, 1, IO_QUEUE);
+      read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode/16, 1, IO_QUEUE);
+      inode_reg[tmp->inode%16].atime = now;
+      write_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode/16, 1, IO_QUEUE);
     }
   } else if (flags == O_WRONLY || flags == O_RDWR) {
     if (flags == O_WRONLY)
@@ -597,10 +635,10 @@ static int vsfs_open(char *pathname, int flags) {
     else if (flags == O_RDWR)
       fd_table->tail->flags = O_RDWR;
     for (path_t *tmp = fd_table->tail->p_head; tmp; tmp = tmp->next) {
-      read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode, 1, IO_QUEUE);
-      inode_reg[tmp->inode].atime = now;
-      inode_reg[tmp->inode].mtime = now;
-      write_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode, 1, IO_QUEUE);
+      read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode/16, 1, IO_QUEUE);
+      inode_reg[tmp->inode%16].atime = now;
+      inode_reg[tmp->inode%16].mtime = now;
+      write_spdk(inode_reg, sb_cached->sbi.ofs_iregion + tmp->inode/16, 1, IO_QUEUE);
     }
   }
 
@@ -631,8 +669,8 @@ free_sb_ca:
   // shm_close(sb, fd);
 sb_exit:
   shm_close(op_counter, opfd);
-  free_dma_buffer(inode_reg);
-  free_dma_buffer(data_reg);
+  // free_dma_buffer(inode_reg);
+  // free_dma_buffer(data_reg);
 wt_list_exit:
   return ret;
 }
@@ -642,6 +680,9 @@ wt_list_exit:
  * \return 0 for success, -1 for err
  */
 static int vsfs_close(int fildes) {
+  if (tmp_base_ptr){
+    free_dma_buffer(tmp_base_ptr);
+  }
   if (SHOW_PROC)
     printf("vsfs_close(): checking all the table\n");
   if (!fd_table) {
@@ -751,12 +792,12 @@ err_exit:
  */
 static int vsfs_stat(char *pathname, file_stat_t *fre) {
   int tmp_fd;
-  struct superblock *tmp_sb = 
-    (struct superblock *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_inode *tmp_inode_reg = 
-    (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_dir_block *tmp_data_reg = 
-    (struct vsfs_dir_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct superblock *tmp_sb = 
+  //   (struct superblock *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_inode *tmp_inode_reg = 
+  //   (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_dir_block *tmp_data_reg = 
+  //   (struct vsfs_dir_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
   uint16_t target_inode = 0;
   short find = 0;
   // tmp_sb = (struct superblock *)shm_oandm(SHM_NAME, O_RDWR,
@@ -859,9 +900,9 @@ not_find:
   return -1;
 op_shm_err:
   fre = NULL;
-  free_dma_buffer(tmp_sb);
-  free_dma_buffer(tmp_inode_reg);
-  free_dma_buffer(tmp_data_reg);
+  // free_dma_buffer(tmp_sb);
+  // free_dma_buffer(tmp_inode_reg);
+  // free_dma_buffer(tmp_data_reg);
   return -1;
 }
 
@@ -873,8 +914,8 @@ static void __attribute__((unused)) vsfs_print_block_nbr(int fildes) {
     }
   }
 
-  struct vsfs_inode *inode_reg = 
-    (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_inode *inode_reg = 
+  //   (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
       // (struct vsfs_inode *)((char *)sb +
       //                       sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
   // struct vsfs_data_block *data_reg =
@@ -895,8 +936,8 @@ static void __attribute__((unused)) vsfs_print_block_nbr(int fildes) {
   if (!blks)
     return;
 
-  struct vsfs_pointer_block *ptr_reg = 
-    (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_pointer_block *ptr_reg = 
+  //   (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
 
   for (int i = 0; blks > 0 && i < 5; i++) {
     printf("level 2[%d]: %u\n", i, inode_reg[target_op->inode_nr%16].l2[i]);
@@ -912,8 +953,8 @@ static void __attribute__((unused)) vsfs_print_block_nbr(int fildes) {
   if (!blks)
     return;
 
-  struct vsfs_pointer_block *l3_ptr_reg = 
-    (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_pointer_block *l3_ptr_reg = 
+  //   (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
   // l3_ptr_reg = (struct vsfs_pointer_block *)&(
   //     data_reg[inode_reg[target_op->inode_nr%16].l3[0]]);
   read_spdk(l3_ptr_reg, sb->info.ofs_dregion + inode_reg[target_op->inode_nr%16].l3[0], 1, IO_QUEUE);
@@ -928,9 +969,9 @@ static void __attribute__((unused)) vsfs_print_block_nbr(int fildes) {
     printf("\n");
     // PAUSE;
   }
-  free_dma_buffer(inode_reg);
-  free_dma_buffer(ptr_reg);
-  free_dma_buffer(l3_ptr_reg);
+  // free_dma_buffer(inode_reg);
+  // free_dma_buffer(ptr_reg);
+  // free_dma_buffer(l3_ptr_reg);
 }
 static int _find_target_in_fdtable(int fildes, fd_table_t **target_fd,
                                    op_ftable_t **target_op) {
@@ -967,8 +1008,8 @@ __return_block(struct vsfs_inode *inode_reg, struct vsfs_data_block *data_reg,
   uint16_t start_block_l1 = 0;
   uint16_t start_block_l2 = 0;
   uint32_t need_return = 0;
-  struct vsfs_pointer_block *ptr_reg;
-  struct vsfs_pointer_block *l3_ptr_reg;
+  // struct vsfs_pointer_block *ptr_reg;
+  // struct vsfs_pointer_block *l3_ptr_reg;
 
   if (SHOW_PROC)
     printf("vsfs_write(): check if there have idle dblock\n");
@@ -1060,14 +1101,15 @@ static size_t __write_dblock(unsigned long inode_reg_offset,
   uint32_t real_blocks = 0;
   uint16_t start_block_l1 = 0;
   uint16_t start_block_l2 = 0;
-  struct vsfs_pointer_block *ptr_reg = 
-    (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_pointer_block *l3_ptr_reg = 
-    (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  void *dma_buf = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_inode *inode_reg = 
-    (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  read_spdk(inode_reg, inode_reg_offset + (target_op->inode_nr / 16), 1, IO_QUEUE);
+  // struct vsfs_pointer_block *ptr_reg = 
+  //   (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_pointer_block *l3_ptr_reg = 
+  //   (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // void *dma_buf = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_inode *inode_reg = 
+  //   (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // suppose inode_reg is already read at vsfs_write
+  // read_spdk(inode_reg, inode_reg_offset + (target_op->inode_nr / 16), 1, IO_QUEUE);
 
   if (SHOW_PROC)
     printf("vsfs_write(): starting to write the file\n");
@@ -1259,10 +1301,10 @@ write_level_3:
     goto free_dma;  
   return -1;
 free_dma:
-  free_dma_buffer(dma_buf);
-  free_dma_buffer(ptr_reg);
-  free_dma_buffer(l3_ptr_reg);
-  free_dma_buffer(inode_reg);
+  // free_dma_buffer(dma_buf);
+  // free_dma_buffer(ptr_reg);
+  // free_dma_buffer(l3_ptr_reg);
+  // free_dma_buffer(inode_reg);
   return written;
 }
 
@@ -1280,7 +1322,8 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
   size_t written;
   int ret = _find_target_in_fdtable(fildes, &target_fd, &target_op);
   op_ftable_t *op_ftable = (op_ftable_t *)(op_counter + 1);
-  struct vsfs_inode *inode_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  
+  // struct vsfs_inode *inode_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   
       // (struct vsfs_inode *)((char *)sb +
       //                       sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
@@ -1350,7 +1393,7 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
   if (inode_reg[target_op->inode_nr%16].blocks <= total_needed_blocks){
     __alloc_block(inode_reg, sb_cached->sbi.ofs_dregion, target_op->inode_nr%16,
                   total_needed_blocks - inode_reg[target_op->inode_nr%16].blocks);
-    write_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr/16,1,IO_QUEUE);
+    // write_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr/16,1,IO_QUEUE);
   }
   // __return_block(inode_reg, data_reg, target_op, nbyte);
 
@@ -1366,7 +1409,7 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
   inode_reg[target_op->inode_nr%16].size = target_op->offset;
   write_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr/16,1,IO_QUEUE);
   
-  free_dma_buffer(inode_reg);
+  // free_dma_buffer(inode_reg);
   return written;
 err_exit:
   return -1;
@@ -1386,11 +1429,12 @@ static int64_t __read_dblock(unsigned long inode_reg_offset,
   uint32_t real_blocks;
   uint16_t start_block_l2;
 
-  void* dma_buf = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_pointer_block *l3_ptr_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_pointer_block *ptr_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  struct vsfs_inode *inode_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  read_spdk(inode_reg, inode_reg_offset + target_op->inode_nr / 16 , 1, IO_QUEUE);
+  // void* dma_buf = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_pointer_block *l3_ptr_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_pointer_block *ptr_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_inode *inode_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // suppose already read at vsfs_read
+  // read_spdk(inode_reg, inode_reg_offset + target_op->inode_nr / 16 , 1, IO_QUEUE);
   
   if (SHOW_PROC)
     printf("vsfs_read(): starting to read the file\n");
@@ -1575,10 +1619,10 @@ read_level_3:
   }
 
 readed:
-  free_dma_buffer(dma_buf);
-  free_dma_buffer(ptr_reg);
-  free_dma_buffer(l3_ptr_reg);
-  free_dma_buffer(inode_reg);
+  // free_dma_buffer(dma_buf);
+  // free_dma_buffer(ptr_reg);
+  // free_dma_buffer(l3_ptr_reg);
+  // free_dma_buffer(inode_reg);
 
   memset((char *)buf + readed, '\0', padded);
 
@@ -1597,7 +1641,7 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte) {
   fd_table_t *target_fd = NULL;
   op_ftable_t *target_op = NULL;
   op_ftable_t *op_ftable;
-  struct vsfs_inode *inode_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_inode *inode_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   // struct vsfs_data_block *data_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);;
   time_t now;
   int ret;
@@ -1648,13 +1692,13 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte) {
   return __read_dblock(sb->info.ofs_iregion, sb->info.ofs_dregion, target_op, nbyte, buf);
 
 err_exit:
-  free_dma_buffer(inode_reg);
+  // free_dma_buffer(inode_reg);
   return -1;
 }
 
 static uint64_t vsfs_lseek(int fd, uint64_t offset, int whence) {
   op_ftable_t *op_ftable;
-  struct vsfs_inode *inode_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  // struct vsfs_inode *inode_reg = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   struct vsfs_data_block *data_reg;
   uint32_t total_needed_blocks;
   op_ftable_t *target_op = NULL;
@@ -1740,7 +1784,7 @@ static uint64_t vsfs_lseek(int fd, uint64_t offset, int whence) {
   return ret;
 
 free_dma:
-  free_dma_buffer(inode_reg);
+  // free_dma_buffer(inode_reg);
 err_exit:
   return -1;
 }
