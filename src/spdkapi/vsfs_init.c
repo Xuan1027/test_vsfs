@@ -1,8 +1,11 @@
-#include "../inc/vsfs.h"
 #include "vsfs_init.h"
+
+#include "../inc/vsfs.h"
 #include "spdk.h"
 
-static struct superblock *write_superblock(unsigned long *lba_cnt ,unsigned block_size, unsigned long device_size) {
+static struct superblock *write_superblock(unsigned long *lba_cnt,
+                                           unsigned block_size,
+                                           unsigned long device_size) {
   struct superblock *sb = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   unsigned long st_size = block_size * device_size;
   if (!sb)
@@ -34,8 +37,8 @@ static struct superblock *write_superblock(unsigned long *lba_cnt ,unsigned bloc
                             .nr_dregion_blocks = htole32(nr_dregion_blocks),
                             .nr_free_inodes = VSFS_NR_INODES - 1,
                             .nr_free_dblock = nr_dregion_blocks - 1};
-  int ret = write_spdk(sb, *lba_cnt, VSFS_BLOCK_SIZE/block_size, IO_QUEUE);
-  (*lba_cnt)+=(VSFS_BLOCK_SIZE/block_size);
+  int ret = write_spdk(sb, *lba_cnt, 1, IO_QUEUE);
+  (*lba_cnt) += (1);
 
   if (ret != 0) {
     free(sb);
@@ -55,7 +58,7 @@ static struct superblock *write_superblock(unsigned long *lba_cnt ,unsigned bloc
   return sb;
 }
 
-static int write_inode_region(unsigned long *lba_cnt, struct superblock *sb, unsigned block_size) {
+static int write_inode_region(unsigned long *lba_cnt, struct superblock *sb) {
   char *block = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   if (!block)
     return -1;
@@ -67,8 +70,8 @@ static int write_inode_region(unsigned long *lba_cnt, struct superblock *sb, uns
   inode->entry = htole32(2);
   inode->l1[0] = htole32(0);
 
-  int ret = write_spdk(block, *lba_cnt, VSFS_BLOCK_SIZE/block_size, IO_QUEUE);
-  (*lba_cnt)+=(VSFS_BLOCK_SIZE/block_size);
+  int ret = write_spdk(block, *lba_cnt, 1, IO_QUEUE);
+  (*lba_cnt) += (1);
 
   if (ret != 0) {
     goto end;
@@ -77,9 +80,9 @@ static int write_inode_region(unsigned long *lba_cnt, struct superblock *sb, uns
   uint32_t count;
   memset(block, 0, VSFS_BLOCK_SIZE);
   for (count = 1; count < 2048; count++) {
-    ret = write_spdk(block, *lba_cnt, VSFS_BLOCK_SIZE/block_size, IO_QUEUE);
-    (*lba_cnt)+=(VSFS_BLOCK_SIZE/block_size);
-    
+    ret = write_spdk(block, *lba_cnt, 1, IO_QUEUE);
+    (*lba_cnt) += (1);
+
     if (ret != 0)
       goto end;
   }
@@ -94,7 +97,7 @@ end:
   return ret;
 }
 
-static int write_inode_bitmap(unsigned long *lba_cnt, struct superblock *sb, unsigned block_size) {
+static int write_inode_bitmap(unsigned long *lba_cnt, struct superblock *sb) {
   char *block = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   if (!block)
     return -1;
@@ -106,13 +109,13 @@ static int write_inode_bitmap(unsigned long *lba_cnt, struct superblock *sb, uns
   /* First inode */
   ibitmap[0] = htole64(0xfffffffffffffffe);
 
-  int ret = write_spdk(block, *lba_cnt, VSFS_BLOCK_SIZE/block_size, IO_QUEUE);
-  (*lba_cnt)+=(VSFS_BLOCK_SIZE/block_size);
+  int ret = write_spdk(block, *lba_cnt, 1, IO_QUEUE);
+  (*lba_cnt) += (1);
   free_dma_buffer(block);
   return ret;
 }
 
-static int write_data_bitmap(unsigned long *lba_cnt, struct superblock *sb, unsigned block_size) {
+static int write_data_bitmap(unsigned long *lba_cnt, struct superblock *sb) {
   char *block = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   if (!block)
     return -1;
@@ -124,16 +127,16 @@ static int write_data_bitmap(unsigned long *lba_cnt, struct superblock *sb, unsi
   /* First data block */
   uint32_t ret;
   dbitmap[0] = htole64(0xfffffffffffffffe);
-  ret = write_spdk(dbitmap, *lba_cnt, VSFS_BLOCK_SIZE/block_size, IO_QUEUE);
-  (*lba_cnt)+=(VSFS_BLOCK_SIZE/block_size);
+  ret = write_spdk(dbitmap, *lba_cnt, 1, IO_QUEUE);
+  (*lba_cnt) += (1);
   if (ret != 0) {
     goto end;
   }
   dbitmap[0] = htole64(0xffffffffffffffff);
   uint32_t i;
   for (i = 1; i < le32toh(sb->info.nr_dbitmap_blocks); i++) {
-    ret = write_spdk(dbitmap, *lba_cnt, VSFS_BLOCK_SIZE/block_size, IO_QUEUE);
-    (*lba_cnt)+=(VSFS_BLOCK_SIZE/block_size);
+    ret = write_spdk(dbitmap, *lba_cnt, 1, IO_QUEUE);
+    (*lba_cnt) += (1);
     if (ret != 0) {
       goto end;
     }
@@ -150,7 +153,7 @@ end:
   return ret;
 }
 
-static int write_data_region(unsigned long *lba_cnt, struct superblock *sb, unsigned block_size) {
+static int write_data_region(unsigned long *lba_cnt, struct superblock *sb) {
   char *block = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   if (!block)
     return -1;
@@ -161,8 +164,9 @@ static int write_data_region(unsigned long *lba_cnt, struct superblock *sb, unsi
   dblock->files[1].inode = 0;
   strncpy(dblock->files[1].filename, "..\0", 3);
 
-  int ret = write_spdk(dblock, *lba_cnt, VSFS_BLOCK_SIZE/block_size, IO_QUEUE);
-  (*lba_cnt)+=(VSFS_BLOCK_SIZE/block_size);
+  int ret =
+      write_spdk(dblock, *lba_cnt, 1, IO_QUEUE);
+  (*lba_cnt) += (1);
 
   if (ret != 0) {
     goto end;
@@ -182,9 +186,10 @@ int init_vsfs(char *name) {
   unsigned long device_size;
   unsigned long lba_cnt = 0;
   get_device_info(&block_size, &device_size);
-  printf("block_size=%d\n"
-         "device_size=%ld\n",
-          block_size, device_size);
+  printf(
+      "block_size=%d\n"
+      "device_size=%ld\n",
+      block_size, device_size);
 
   struct superblock *sb = write_superblock(&lba_cnt, block_size, device_size);
   if (!sb) {
@@ -192,25 +197,25 @@ int init_vsfs(char *name) {
     goto free_sb;
   }
 
-  ret = write_inode_bitmap(&lba_cnt, sb, block_size);
+  ret = write_inode_bitmap(&lba_cnt, sb);
   if (ret) {
     handle_error("write_inode_bitmap");
     goto free_sb;
   }
 
-  ret = write_inode_region(&lba_cnt, sb, block_size);
+  ret = write_inode_region(&lba_cnt, sb);
   if (ret) {
     handle_error("write_inode_region");
     goto free_sb;
   }
 
-  ret = write_data_bitmap(&lba_cnt, sb, block_size);
+  ret = write_data_bitmap(&lba_cnt, sb);
   if (ret) {
     handle_error("write_data_bitmap");
     goto free_sb;
   }
 
-  ret = write_data_region(&lba_cnt, sb, block_size);
+  ret = write_data_region(&lba_cnt, sb);
   if (ret) {
     handle_error("write_data_region");
     goto free_sb;
@@ -230,22 +235,27 @@ free_sb:
   return ret;
 }
 
-
 static int make_shm_cached(char *name, char *ptr) {
   struct superblock *sb = (struct superblock *)ptr;
-  char *ibitmap = alloc_dma_buffer(VSFS_BLOCK_SIZE * sb->info.nr_ibitmap_blocks);
-  char *dbitmap = alloc_dma_buffer(VSFS_BLOCK_SIZE * sb->info.nr_dbitmap_blocks);
-  if(!ibitmap || !dbitmap)
-   goto free_dma;
+  char *ibitmap =
+      alloc_dma_buffer(VSFS_BLOCK_SIZE * sb->info.nr_ibitmap_blocks);
+  char *dbitmap =
+      alloc_dma_buffer(VSFS_BLOCK_SIZE * sb->info.nr_dbitmap_blocks);
+  if (!ibitmap || !dbitmap)
+    goto free_dma;
 
   int ret = 0;
-  ret = read_spdk(ibitmap, sb->info.ofs_ibitmap, sb->info.nr_ibitmap_blocks, IO_QUEUE);
-  if(ret!=0){
+  ret = read_spdk(ibitmap, sb->info.ofs_ibitmap,
+                  sb->info.nr_ibitmap_blocks,
+                  IO_QUEUE);
+  if (ret != 0) {
     handle_error("read_spdk():");
     goto free_dma;
   }
-  ret = read_spdk(dbitmap, sb->info.ofs_dbitmap, sb->info.nr_dbitmap_blocks, IO_QUEUE);
-  if(ret!=0){
+  ret = read_spdk(dbitmap, sb->info.ofs_dbitmap,
+                  sb->info.nr_dbitmap_blocks,
+                  IO_QUEUE);
+  if (ret != 0) {
     handle_error("read_spdk():");
     goto free_dma;
   }
@@ -295,12 +305,6 @@ free_str:
 free_dma:
   free_dma_buffer(ibitmap);
   free_dma_buffer(dbitmap);
-  return ret;
-}
-
-static int init_spdk_daemon(void) {
-  int ret = 0;
-  // todo:
   return ret;
 }
 
@@ -359,12 +363,6 @@ int mount_vsfs(char *name) {
 
   if (creat_open_file_table() < 0)
     handle_error("creat_open_file_table():");
-
-  ret = init_spdk_daemon();
-  if (ret == -1) {
-    handle_error("init_spdk_daemon():");
-    return ret;
-  }
 
   return 0;
 free:

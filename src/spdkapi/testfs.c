@@ -2,7 +2,6 @@
 #include "../inc/vsfs_stdinc.h"
 #include "spdk.h"
 
-
 #define handle_error(msg) \
   do {                    \
     perror(msg);          \
@@ -11,7 +10,11 @@
 
 int main(int argc, char *argv[]) {
   init_spdk();
-  
+
+  printf("_MY_SSD_BLOCK_SIZE_=%d\n", _MY_SSD_BLOCK_SIZE_);
+  printf("VSFS_BLOCK_SIZE=%d\n", VSFS_BLOCK_SIZE);
+  printf("PER_DEV_BLOCKS=%d\n", PER_DEV_BLOCKS);
+
   struct superblock *sb = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   read_spdk(sb, 0, 1, IO_QUEUE);
 
@@ -34,7 +37,6 @@ int main(int argc, char *argv[]) {
       sb->info.nr_dbitmap_blocks, sb->info.nr_dregion_blocks,
       sb->info.ofs_ibitmap, sb->info.ofs_iregion, sb->info.ofs_dbitmap,
       sb->info.ofs_dregion, sb->info.nr_free_inodes, sb->info.nr_free_dblock);
-  
 
   struct vsfs_inode *root_inode = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   read_spdk(root_inode, sb->info.ofs_iregion, 1, IO_QUEUE);
@@ -43,27 +45,28 @@ int main(int argc, char *argv[]) {
       "root inode:\n"
       "\tmode: %x\n"
       "\tblocks: %u\n"
-      "\tsize: %u\n"
+      "\tentry: %u\n"
       "\tatime: %lu\n"
       "\tctime: %lu\n"
       "\tmtime: %lu\n",
-      root_inode->mode, root_inode->blocks, root_inode->size, root_inode->atime,
-      root_inode->ctime, root_inode->mtime);
-  
+      root_inode->mode, root_inode->blocks, root_inode->entry,
+      root_inode->atime, root_inode->ctime, root_inode->mtime);
 
   struct vsfs_dir_block *root_dir_info = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  read_spdk(root_dir_info, sb->info.ofs_dregion + root_inode->l1[0], 1, IO_QUEUE);
+  read_spdk(root_dir_info,
+            sb->info.ofs_dregion + root_inode->l1[0], 1,
+            IO_QUEUE);
 
   int i;
   printf("/\n");
   for (i = 0; i < root_inode->entry; i++) {
-    if (i%16==0){
-      read_spdk(root_dir_info, sb->info.ofs_dregion + root_inode->l1[i/16], 1, IO_QUEUE);
+    if (i % 16 == 0) {
+      read_spdk(root_dir_info, sb->info.ofs_dregion + root_inode->l1[i / 16], 1,
+                IO_QUEUE);
     }
-    
-    printf("\t%s\tinode:%u\n", root_dir_info->files[i%16].filename,
-           root_dir_info->files[i%16].inode);
-    
+
+    printf("\t%s\tinode:%u\n", root_dir_info->files[i % 16].filename,
+           root_dir_info->files[i % 16].inode);
   }
   printf("nr_inode/64=%ld\n", VSFS_NR_INODES / 64);
 

@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
 
   gettimeofday(&starttime, 0);
   // int limit = 1 * 1024 * 1024 / 8;
-  int limit = 49 + (5 * 1024) + 1;
+  int limit = 50*1024;
 
   vsfs_creat("test", limit);
 
@@ -30,6 +30,8 @@ int main(int argc, char **argv) {
     return -1;
   }
   for (int i = 1; i <= limit; i++) {
+    if(i%1000==0)
+      printf("round: %d\n", i);
     // switch(i){
     //   case 49:
     //   printf("L1 write finish\n");
@@ -71,7 +73,7 @@ int main(int argc, char **argv) {
   // vsfs_print_block_nbr(fd);
   uint64_t count = 0;
   while (vsfs_read(fd, src, 4096) != EOF) {
-    int i = count/4096;
+    // int i = count/4096;
     // switch(i){
     //   case 49:
     //   printf("L1 write finish\n");
