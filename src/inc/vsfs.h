@@ -85,6 +85,19 @@ struct vsfs_inode {
     time_t mtime; /* Modification time */
 };
 
+typedef struct file{
+    uint64_t size;
+    uint32_t mode;
+    uint32_t blocks;
+    uint32_t *block;
+    uint32_t l2_block[1024];
+    uint32_t l3_block;
+    uint16_t inode;
+    time_t atime; /* Access time */
+    time_t ctime; /* Inode change time */
+    time_t mtime; /* Modification time */
+}file_t;
+
 struct vsfs_file_entry {
     uint16_t inode;
     char filename[VSFS_FILENAME_LEN];
@@ -107,6 +120,7 @@ typedef struct op_file_table_entry {
     uint32_t inode_nr;
     uint16_t ptr_counter;
     uint16_t lock;
+    file_t* file_ptr;
 } op_ftable_t;
 
 /* superblock functions */

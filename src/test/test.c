@@ -2,7 +2,7 @@
 
 int main(){
 
-  printf("%ld\n", sizeof(struct op_file_table_entry));
+  printf("size = %ld B\n", sizeof(struct file));
 
   return 0;
 }
