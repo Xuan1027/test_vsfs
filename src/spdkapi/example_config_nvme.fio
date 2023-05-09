@@ -8,6 +8,6 @@ time_based
 runtime=10
 
 [file1]
-size=1G
-ioengine=/home/hoshinomori/vsfs/spdk/build/fio/myfio
+size=20k
+ioengine=/home/xuan/vsfs/spdk/build/fio/myfio
 iodepth=1

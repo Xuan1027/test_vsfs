@@ -54,6 +54,7 @@ static enum fio_q_status vsfs_queue(struct thread_data *td,
 }
 
 static int myfio_setup(struct thread_data *td) { 
+  exit_spdk();
   init_spdk();
   printf("------------------initialize vsfs-------------------\n");
   init_vsfs("vsfs");
@@ -74,11 +75,13 @@ static int vsfs_getevents(struct thread_data *td, unsigned int min,
 static struct io_u *vsfs_event(struct thread_data *td, int event) { return 0; }
 
 static int vsfs_alloc(struct thread_data *td, size_t size){
+  printf("alloc buf\n");
   td->orig_buffer = alloc_dma_buffer(size);
   return td->orig_buffer == NULL;
 }
 
 static void vsfs_free(struct thread_data *td){
+  printf("free buf\n");
   free_dma_buffer(td->orig_buffer);
 }
 

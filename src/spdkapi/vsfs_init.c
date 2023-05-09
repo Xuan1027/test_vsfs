@@ -77,21 +77,20 @@ static int write_inode_region(unsigned long *lba_cnt, struct superblock *sb) {
     goto end;
   }
 
-  uint32_t count;
-  memset(block, 0, VSFS_BLOCK_SIZE);
-  for (count = 1; count < 2048; count++) {
-    ret = write_spdk(block, *lba_cnt, 1, IO_QUEUE);
-    (*lba_cnt) += (1);
+  free_dma_buffer(block);
+  block = alloc_dma_buffer((sb->info.nr_iregion_blocks - 1) * VSFS_BLOCK_SIZE);
+  memset(block, 0, (sb->info.nr_iregion_blocks - 1) * VSFS_BLOCK_SIZE);
+  ret = write_spdk(block, *lba_cnt, sb->info.nr_iregion_blocks - 1, IO_QUEUE);
+  (*lba_cnt) += (sb->info.nr_iregion_blocks - 1);
 
-    if (ret != 0)
-      goto end;
-  }
+  if (ret != 0)
+    goto end;
 
   printf(
       "Inode region:\n"
       "\tinode size = %ld B\n"
       "\twrote %u blocks\n",
-      sizeof(struct vsfs_inode), count);
+      sizeof(struct vsfs_inode), sb->info.nr_iregion_blocks);
 end:
   free_dma_buffer(block);
   return ret;
@@ -132,20 +131,20 @@ static int write_data_bitmap(unsigned long *lba_cnt, struct superblock *sb) {
   if (ret != 0) {
     goto end;
   }
-  dbitmap[0] = htole64(0xffffffffffffffff);
-  uint32_t i;
-  for (i = 1; i < le32toh(sb->info.nr_dbitmap_blocks); i++) {
-    ret = write_spdk(dbitmap, *lba_cnt, 1, IO_QUEUE);
-    (*lba_cnt) += (1);
-    if (ret != 0) {
-      goto end;
-    }
+  free_dma_buffer(block);
+  block = alloc_dma_buffer((sb->info.nr_dbitmap_blocks - 1) * VSFS_BLOCK_SIZE);
+  dbitmap = (uint64_t *)block;
+  memset(dbitmap, 0xff, (sb->info.nr_dbitmap_blocks - 1) * VSFS_BLOCK_SIZE);
+  ret = write_spdk(dbitmap, *lba_cnt, sb->info.nr_dbitmap_blocks - 1, IO_QUEUE);
+  (*lba_cnt) += (sb->info.nr_dbitmap_blocks - 1);
+  if (ret != 0) {
+    goto end;
   }
   ret = 0;
   printf(
       "Data bitmap:\n"
       "\twrote %d blocks\n",
-      i);
+      sb->info.nr_dbitmap_blocks);
 
 end:
   free_dma_buffer(block);
@@ -164,8 +163,7 @@ static int write_data_region(unsigned long *lba_cnt, struct superblock *sb) {
   dblock->files[1].inode = 0;
   strncpy(dblock->files[1].filename, "..\0", 3);
 
-  int ret =
-      write_spdk(dblock, *lba_cnt, 1, IO_QUEUE);
+  int ret = write_spdk(dblock, *lba_cnt, 1, IO_QUEUE);
   (*lba_cnt) += (1);
 
   if (ret != 0) {
@@ -245,15 +243,13 @@ static int make_shm_cached(char *name, char *ptr) {
     goto free_dma;
 
   int ret = 0;
-  ret = read_spdk(ibitmap, sb->info.ofs_ibitmap,
-                  sb->info.nr_ibitmap_blocks,
+  ret = read_spdk(ibitmap, sb->info.ofs_ibitmap, sb->info.nr_ibitmap_blocks,
                   IO_QUEUE);
   if (ret != 0) {
     handle_error("read_spdk():");
     goto free_dma;
   }
-  ret = read_spdk(dbitmap, sb->info.ofs_dbitmap,
-                  sb->info.nr_dbitmap_blocks,
+  ret = read_spdk(dbitmap, sb->info.ofs_dbitmap, sb->info.nr_dbitmap_blocks,
                   IO_QUEUE);
   if (ret != 0) {
     handle_error("read_spdk():");
