@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
 
   gettimeofday(&starttime, 0);
   // int limit = 1 * 1024 * 1024 / 8;
-  int limit = 50*1024;
+  int limit = 1024;
 
   vsfs_creat("test", limit);
 

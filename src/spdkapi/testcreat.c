@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
   int fd = vsfs_open("test", O_RDWR);
 
   // printf("fd = %d\n",fd);
-  vsfs_print_block_nbr(fd);
+  // vsfs_print_block_nbr(fd);
   vsfs_close(fd);
   // free(fname);
 

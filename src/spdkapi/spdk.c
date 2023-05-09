@@ -137,11 +137,15 @@ void exit_spdk(void) {
     printf("Error: No namespace found\n");
     return;
   }
+  // printf("destroy_qpair\n");
   for (unsigned type = 0; type < QPAIR_COUNT; type++) {
     destroy_qpair(type);
   }
+  // printf("spdk_nvme_detach\n");
   spdk_nvme_detach(target.ctrlr);
+  // printf("spdk_env_fini\n");
   spdk_env_fini();
+  // printf("reset_ctrlr_and_ns\n");
   reset_ctrlr_and_ns();
 }
 
