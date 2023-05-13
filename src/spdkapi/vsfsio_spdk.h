@@ -95,6 +95,9 @@ static int __alloc_block(struct vsfs_inode *inode_reg,
   // struct vsfs_pointer_block *l3_ptr_reg =
   //   (struct vsfs_pointer_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
   // determine ptr level to use
+  read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + (inode_nr / 16), 1,
+            IO_QUEUE);
+
   if (inode_reg[inode_nr].blocks >= VSFS_LEVEL2_LIMIT) {
     goto level3;
   }
@@ -226,7 +229,7 @@ free_dma:
   data_reg
 */
 static void init_base_ptr() {
-  tmp_base_ptr = alloc_dma_buffer(VSFS_BLOCK_SIZE * 10);
+  tmp_base_ptr = (struct vsfs_data_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE * 10);
   at_tmp_base(sb, 0);
   read_spdk(sb, 0, 1, IO_QUEUE);
   at_tmp_base(tmp_sb, 1);
@@ -252,14 +255,6 @@ static int vsfs_creat(const char *file_name, uint32_t block_num) {
   if (tmp_base_ptr == NULL)
     init_base_ptr();
 
-  // tmp_sb =
-  //   (struct superblock *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  // tmp_inode_reg =
-  //   (struct vsfs_inode *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  // tmp_dir_reg =
-  //   (struct vsfs_dir_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  // tmp_data_reg =
-  //   (struct vsfs_data_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
   char *name;
 
   if (SHOW_PROC)
@@ -272,19 +267,12 @@ static int vsfs_creat(const char *file_name, uint32_t block_num) {
 
   name = (char *)malloc(VSFS_FILENAME_LEN);
 
-  // printf("shm_cached_name = <%s>\n", shm_cache_name);
-
   if (strlen(file_name) >= VSFS_FILENAME_LEN) {
     printf("ERR: in vsfs_vreat(): the file_name over the limit!\n");
     goto sb_err_exit;
   }
   strcpy(name, file_name);
 
-  // tmp_sb = (struct superblock *)shm_oandm(SHM_NAME, O_RDWR,
-  // PROT_READ | PROT_WRITE, &tmp_fd);
-  // read_spdk(tmp_sb, 0, 1, IO_QUEUE);
-  // if (!tmp_sb)
-  //   goto shm_err_exit;
   tmp_sb_cached = (struct vsfs_cached_data *)shm_oandm(
       SHM_CACHE_NAME, O_RDWR, PROT_READ | PROT_WRITE, &tmp_fdc);
   if (!tmp_sb_cached)
@@ -301,6 +289,14 @@ static int vsfs_creat(const char *file_name, uint32_t block_num) {
   //     (struct vsfs_data_block *)((char *)tmp_sb +
   //                                tmp_sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
   // read_spdk(tmp_data_reg, tmp_sb_cached->sbi.ofs_dregion, 1, IO_QUEUE);
+  // sb_cached = tmp_sb_cached;
+  // if(SHOW_PROC)
+  //   printf("vsfs_creat(): getting info from root\n");
+  // if(vsfs_get_indoe_info(root,0)){
+  //   printf("ERR: in vsfs_creat(): getting root info err!\n");
+  //   goto sb_err_exit;
+  // }
+  // sb_cached = NULL;
 
   // need to find if there have same file_name
   for (uint32_t i = 0; i <= tmp_inode_reg->entry / 16; i++) {
@@ -410,6 +406,8 @@ adding_entry:
   //     data_reg[offset].files[i-16*offset].filename);
   // }
 
+  write_spdk(tmp_inode_reg, tmp_sb_cached->sbi.ofs_iregion + (f_inode / 16), 1,
+             IO_QUEUE);
   __alloc_block(tmp_inode_reg, tmp_sb_cached->sbi.ofs_dregion, f_inode % 16,
                 block_num);
   sb_cached = NULL;
@@ -461,6 +459,7 @@ static int vsfs_open(char *pathname, int flags) {
   // struct vsfs_dir_block *data_reg =
   //   (struct vsfs_dir_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
   uint16_t target_inode;
+  file_t *file;
   short inode_find = 0;
   short optab_find = 0;
 
@@ -576,7 +575,7 @@ static int vsfs_open(char *pathname, int flags) {
   // check for the pathname in disk
 
   // adding struct file here
-  file_t *file = (file_t *)malloc(sizeof(file_t));
+  file = (file_t *)malloc(sizeof(file_t));
 
   for (uint32_t i = 0; i < inode_reg->entry; i++) {
     int offset = inode_reg->l1[i / 16];
@@ -1179,7 +1178,7 @@ static size_t __write_dblock(op_ftable_t *target_op, size_t nbyte,
                  sb_cached->sbi.ofs_dregion + target_op->file_ptr->block[i], 1,
                  IO_QUEUE);
     } else {
-      write_spdk(buf + written,
+      write_spdk((void*)buf + written,
                  sb_cached->sbi.ofs_dregion + target_op->file_ptr->block[i], 1,
                  IO_QUEUE);
     }
@@ -1277,8 +1276,10 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
     goto err_exit;
   }
 
-  read_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr / 16, 1,
-            IO_QUEUE);
+  inode_reg = (struct vsfs_inode *)((char *)sb_cached +
+                                    sb_cached->sbi.ofs_iregion * VSFS_BLOCK_SIZE);
+  // read_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr / 16, 1,
+  //           IO_QUEUE);
   if (inode_reg[target_op->inode_nr % 16].blocks <= total_needed_blocks) {
     __alloc_block(
         inode_reg, sb_cached->sbi.ofs_dregion, target_op->inode_nr % 16,
@@ -1292,15 +1293,16 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
     printf("vsfs_write(): modify the inode of a,mtime\n");
   time_t now;
   time(&now);
-  inode_reg[target_op->inode_nr % 16].atime = now;
-  inode_reg[target_op->inode_nr % 16].mtime = now;
+  target_op->file_ptr->atime = now;
+  target_op->file_ptr->mtime = now;
+  // inode_reg[target_op->inode_nr % 16].atime = now;
+  // inode_reg[target_op->inode_nr % 16].mtime = now;
 
   written = __write_dblock(target_op, nbyte, buf);
 
-  inode_reg[target_op->inode_nr % 16].size = target_op->offset;
   target_op->file_ptr->size += written;
-  write_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr / 16, 1,
-             IO_QUEUE);
+  // write_spdk(inode_reg, sb->info.ofs_iregion + target_op->inode_nr / 16, 1,
+  //            IO_QUEUE);
 
   // free_dma_buffer(inode_reg);
   return written;
@@ -1368,7 +1370,7 @@ static int64_t __read_dblock(op_ftable_t *target_op, size_t nbyte,
           target_op->file_ptr->block[i], offset, nbyte, left, readed, padded,
           read_length, target_op->offset);
 
-    read_spdk(buf, sb_cached->sbi.ofs_dregion + target_op->file_ptr->block[i],
+    read_spdk((void *)buf, sb_cached->sbi.ofs_dregion + target_op->file_ptr->block[i],
               1, IO_QUEUE);
     readed += read_length;
     left -= read_length;
@@ -1429,8 +1431,8 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte) {
   }
   // inode_reg = (struct vsfs_inode *)((char *)sb +
   //                                   sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
-  read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + (target_op->inode_nr / 16),
-            1, IO_QUEUE);
+  // read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + (target_op->inode_nr / 16),
+  //           1, IO_QUEUE);
   // data_reg = (struct vsfs_data_block *)((char *)sb +
   //                                       sb->info.ofs_dregion *
   //                                       VSFS_BLOCK_SIZE);
@@ -1441,7 +1443,8 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte) {
   if (SHOW_PROC)
     printf("vsfs_read(): modify the inode of a,mtime\n");
   time(&now);
-  inode_reg[target_op->inode_nr % 16].atime = now;
+  target_op->file_ptr->atime = now;
+  // inode_reg[target_op->inode_nr % 16].atime = now;
 
   return __read_dblock(target_op, nbyte, buf);
 
@@ -1471,8 +1474,11 @@ static uint64_t vsfs_lseek(int fd, uint64_t offset, int whence) {
     goto err_exit;
   }
 
-  read_spdk(inode_reg, sb->info.ofs_iregion + (op_ftable->inode_nr / 16), 1,
-            IO_QUEUE);
+  inode_reg = (struct vsfs_inode *)((char *)sb_cached +
+                                    sb_cached->sbi.ofs_iregion * VSFS_BLOCK_SIZE);
+
+  // read_spdk(inode_reg, sb->info.ofs_iregion + (op_ftable->inode_nr / 16), 1,
+  //           IO_QUEUE);
   // inode_reg = (struct vsfs_inode *)((char *)sb +
   //                                   sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
   // data_reg = (struct vsfs_data_block *)((char *)sb +
@@ -1540,22 +1546,20 @@ err_exit:
 }
 
 static int vsfs_get_indoe_info(file_t *file, uint16_t inode_num) {
+  if(!sb_cached){
+    printf("ERR: in vsfs_get_inode_info(): sb_cached are NULL!\n");
+    return -1;
+  }
   read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + inode_num / 16, 1,
             IO_QUEUE);
   *file = (file_t){
-      .inode = inode_num,
-      .blocks = inode_reg[inode_num % 16].blocks,
       .mode = inode_reg[inode_num % 16].mode,
+      .blocks = inode_reg[inode_num % 16].blocks,
+      .inode = inode_num,
       .atime = inode_reg[inode_num % 16].atime,
       .ctime = inode_reg[inode_num % 16].ctime,
       .mtime = inode_reg[inode_num % 16].mtime,
   };
-  if (inode_reg[inode_num % 16].size == 0 &&
-      inode_reg[inode_num % 16].blocks == 1048576)
-    file->size = (uint64_t)0x100000000;
-
-  file->block = (uint32_t *)malloc(file->blocks * sizeof(uint32_t));
-
   if (SHOW_PROC)
     printf(
         "the contain of file:\n"
@@ -1568,6 +1572,14 @@ static int vsfs_get_indoe_info(file_t *file, uint16_t inode_num) {
         "\tmtime = %lu\n",
         file->mode, file->inode, file->size, file->blocks, file->atime,
         file->ctime, file->mtime);
+  if (inode_reg[inode_num % 16].size == 0 &&
+      inode_reg[inode_num % 16].blocks == 1048576)
+    file->size = (uint64_t)0x100000000;
+  else
+    file->size = inode_reg[inode_num % 16].size;
+
+
+  file->block = (uint32_t *)malloc(file->blocks * sizeof(uint32_t));
 
   read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + inode_num / 16, 1,
             IO_QUEUE);
