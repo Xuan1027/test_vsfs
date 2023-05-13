@@ -1,7 +1,9 @@
 #include "vsfs_init.h"
 
-#include "../inc/vsfs.h"
 #include "spdk.h"
+#include "vsfs.h"
+#include "vsfs_bitmap.h"
+#include "vsfs_shmfunc.h"
 
 static struct superblock *write_superblock(unsigned long *lba_cnt,
                                            unsigned block_size,
@@ -304,6 +306,38 @@ free_dma:
   return ret;
 }
 
+static int write_sb_cached_to_SSD(char *name) {
+  int fdc;
+
+  struct vsfs_cached_data *sb_cached = (struct vsfs_cached_data *)shm_oandm(
+      name, O_RDWR, PROT_READ | PROT_WRITE, &fdc);
+  if (!sb_cached) {
+    printf("Error: open super block cached faild!\n");
+  }
+
+  uint32_t bitmap_total_size =
+      (sb_cached->sbi.nr_ibitmap_blocks + sb_cached->sbi.nr_dbitmap_blocks) *
+      VSFS_BLOCK_SIZE;
+
+  uint32_t sb_cached_total_blocks =
+      sb_cached->sbi.nr_ibitmap_blocks + sb_cached->sbi.nr_dbitmap_blocks + 1;
+
+  char *ptr = alloc_dma_buffer(sb_cached_total_blocks * VSFS_BLOCK_SIZE);
+
+  memcpy(ptr, sb_cached, sizeof(struct vsfs_sb_info));
+
+  memset(ptr + sizeof(struct vsfs_sb_info), '\0',
+         VSFS_BLOCK_SIZE - sizeof(struct vsfs_sb_info));
+  memcpy(ptr + VSFS_BLOCK_SIZE, sb_cached + sizeof(struct vsfs_sb_info),
+         bitmap_total_size);
+
+  write_spdk(ptr, 0, sb_cached_total_blocks, IO_QUEUE);
+
+  shm_close((void **)&sb_cached, fdc);
+
+  return 0;
+}
+
 static int creat_open_file_table(void) {
   // open file table test
   int opfd = shm_open("optab", O_CREAT | O_RDWR, 0666);
@@ -361,8 +395,27 @@ int mount_vsfs(char *name) {
   if (creat_open_file_table() < 0)
     handle_error("creat_open_file_table():");
 
+  free_dma_buffer(ptr);
   return 0;
 free:
   free_dma_buffer(ptr);
+  return ret;
+}
+
+int unmount_vsfs(char *name) {
+  int ret = -1;
+
+  ret = write_sb_cached_to_SSD(strcat(name, "_cached"));
+  if (ret != 0) {
+    goto free;
+  }
+
+  // shm_unlink(name);
+  // printf("unlink %s\n", name);
+  // shm_unlink("optab");
+  // printf("unlink optab\n");
+
+  return 0;
+free:
   return ret;
 }

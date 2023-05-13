@@ -51,7 +51,7 @@ typedef struct file_stat {
 struct fd_table_list *fd_table = NULL;
 
 int fd = 0, fdc = 0, opfd = 0;
-struct superblock *sb = NULL;
+// struct superblock *sb = NULL;
 struct vsfs_cached_data *sb_cached = NULL;
 unsigned short *op_counter = NULL;
 
@@ -230,18 +230,18 @@ free_dma:
 */
 static void init_base_ptr() {
   tmp_base_ptr =
-      (struct vsfs_data_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE * 10);
-  at_tmp_base(sb, 0);
-  read_spdk(sb, 0, 1, IO_QUEUE);
-  at_tmp_base(tmp_sb, 1);
-  at_tmp_base(tmp_inode_reg, 2);
-  at_tmp_base(tmp_data_reg, 3);
-  at_tmp_base(tmp_dir_reg, 4);
-  at_tmp_base(ptr_reg, 5);
-  at_tmp_base(l3_ptr_reg, 6);
-  at_tmp_base(inode_reg, 7);
-  at_tmp_base(data_reg, 8);
-  at_tmp_base(dma_buf, 9);
+      (struct vsfs_data_block *)alloc_dma_buffer(VSFS_BLOCK_SIZE * 9);
+  // at_tmp_base(sb, 0);
+  // read_spdk(sb, 0, 1, IO_QUEUE);
+  at_tmp_base(tmp_sb, 0);
+  at_tmp_base(tmp_inode_reg, 1);
+  at_tmp_base(tmp_data_reg, 2);
+  at_tmp_base(tmp_dir_reg, 3);
+  at_tmp_base(ptr_reg, 4);
+  at_tmp_base(l3_ptr_reg, 5);
+  at_tmp_base(inode_reg, 6);
+  at_tmp_base(data_reg, 7);
+  at_tmp_base(dma_buf, 8);
 }
 
 /**
@@ -252,6 +252,7 @@ static int vsfs_creat(const char *file_name, uint32_t block_num) {
   int tmp_fdc;
   uint32_t f_inode, f_dblock, d_entry;
   struct vsfs_cached_data *tmp_sb_cached;
+  short ret_sb_flag = 0;
   if (tmp_base_ptr == NULL)
     init_base_ptr();
 
@@ -374,7 +375,10 @@ adding_entry:
   read_spdk(tmp_inode_reg, tmp_sb_cached->sbi.ofs_iregion + (f_inode / 16), 1,
             IO_QUEUE);
   // setting the new inode
-  sb_cached = tmp_sb_cached;
+  if (!sb_cached) {
+    sb_cached = tmp_sb_cached;
+    ret_sb_flag = 1;
+  }
   tmp_inode_reg[f_inode % 16].mode = htole32(0x07);
   tmp_inode_reg[f_inode % 16].blocks = htole32(0);
   tmp_inode_reg[f_inode % 16].atime = tmp_inode_reg[f_inode % 16].ctime =
@@ -397,7 +401,8 @@ adding_entry:
              IO_QUEUE);
   __alloc_block(tmp_inode_reg, tmp_sb_cached->sbi.ofs_dregion, f_inode % 16,
                 block_num);
-  sb_cached = NULL;
+  if (ret_sb_flag)
+    sb_cached = NULL;
   tmp_inode_reg[f_inode % 16].blocks = htole32(block_num);
   tmp_inode_reg[f_inode % 16].size = htole32(block_num * 4096);
 
@@ -405,14 +410,14 @@ adding_entry:
              IO_QUEUE);
 
   // shm_close(tmp_sb, tmp_fd);
-  shm_close((void**)&tmp_sb_cached, tmp_fdc);
+  shm_close((void **)&tmp_sb_cached, tmp_fdc);
   // if (tmp_base_ptr) {
   //   free_dma_buffer(tmp_base_ptr);
   // }
 
   return 0;
 sup_cached_err_exit:
-  shm_close((void**)&tmp_sb_cached, tmp_fdc);
+  shm_close((void **)&tmp_sb_cached, tmp_fdc);
 sb_err_exit:
   // shm_close(tmp_sb, tmp_fd);
   free(name);
@@ -470,14 +475,14 @@ static int vsfs_open(char *pathname, int flags) {
     goto wt_list_exit;
   }
 
-  if (!sb) {
-    if (SHOW_PROC)
-      printf("vsfs_open(): opening the disk(mem)\n");
-    // sb = (struct superblock *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
-    // sb = (struct superblock *)shm_oandm(SHM_NAME, O_RDWR,
-    //                                     PROT_READ | PROT_WRITE, &fd);
-    read_spdk(sb, 0, 1, IO_QUEUE);
-  }
+  // if (!sb) {
+  //   if (SHOW_PROC)
+  //     printf("vsfs_open(): opening the disk(mem)\n");
+  //   // sb = (struct superblock *)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  //   // sb = (struct superblock *)shm_oandm(SHM_NAME, O_RDWR,
+  //   //                                     PROT_READ | PROT_WRITE, &fd);
+  //   read_spdk(sb, 0, 1, IO_QUEUE);
+  // }
   // if (!sb) {
   //   printf("ERR: in vsfs_open(): open disk(memory) faild!\n");
   //   goto sb_exit;
@@ -679,7 +684,7 @@ free_fd:
   free(fd_table);
 free_sb_ca:
   // shm_close(sb, fd);
-  shm_close((void**)&op_counter, opfd);
+  shm_close((void **)&op_counter, opfd);
   // free_dma_buffer(inode_reg);
   // free_dma_buffer(data_reg);
 wt_list_exit:
@@ -798,8 +803,8 @@ static int vsfs_close(int fildes) {
       printf("vsfs_close(): free fd table\n");
     free(fd_table);
     // shm_close(sb, fd);
-    shm_close((void**)&sb_cached, fdc);
-    shm_close((void**)&op_counter, opfd);
+    shm_close((void **)&sb_cached, fdc);
+    shm_close((void **)&op_counter, opfd);
   }
 
   return 0;
@@ -917,10 +922,10 @@ static int vsfs_stat(char *pathname, file_stat_t *fre) {
   //     data_reg[offset].files[i-16*offset].filename);
   // }
 
-  shm_close((void**)&tmp_sb, tmp_fd);
+  shm_close((void **)&tmp_sb, tmp_fd);
   return 0;
 not_find:
-  shm_close((void**)&tmp_sb, tmp_fd);
+  shm_close((void **)&tmp_sb, tmp_fd);
   return -1;
   fre = NULL;
   // free_dma_buffer(tmp_sb);
@@ -945,7 +950,7 @@ static void __attribute__((unused)) vsfs_print_block_nbr(int fildes) {
   // (struct vsfs_data_block *)((char *)sb +
   //                           sb->info.ofs_dregion * VSFS_BLOCK_SIZE);
 
-  read_spdk(inode_reg, sb->info.ofs_iregion + (target_op->inode_nr / 16), 1,
+  read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + (target_op->inode_nr / 16), 1,
             IO_QUEUE);
   uint32_t blks = inode_reg[target_op->inode_nr % 16].blocks;
 
@@ -966,7 +971,7 @@ static void __attribute__((unused)) vsfs_print_block_nbr(int fildes) {
   for (int i = 0; blks > 0 && i < 5; i++) {
     printf("level 2[%d]: %u\n", i, inode_reg[target_op->inode_nr % 16].l2[i]);
     read_spdk(ptr_reg,
-              sb->info.ofs_dregion + inode_reg[target_op->inode_nr % 16].l2[i],
+              sb_cached->sbi.ofs_dregion + inode_reg[target_op->inode_nr % 16].l2[i],
               1, IO_QUEUE);
     // ptr_reg = (struct vsfs_pointer_block *)(&(
     //     data_reg[inode_reg[target_op->inode_nr%16].l2[i]]));
@@ -984,12 +989,12 @@ static void __attribute__((unused)) vsfs_print_block_nbr(int fildes) {
   // l3_ptr_reg = (struct vsfs_pointer_block *)&(
   //     data_reg[inode_reg[target_op->inode_nr%16].l3[0]]);
   read_spdk(l3_ptr_reg,
-            sb->info.ofs_dregion + inode_reg[target_op->inode_nr % 16].l3[0], 1,
+            sb_cached->sbi.ofs_dregion + inode_reg[target_op->inode_nr % 16].l3[0], 1,
             IO_QUEUE);
   printf("level 3[0]: %u\n", inode_reg[target_op->inode_nr % 16].l3[0]);
   for (int i = 0; blks > 0 && i < 1024; i++) {
     printf("level 2[%d]: %u\n", i, l3_ptr_reg->__pointer[i]);
-    read_spdk(ptr_reg, sb->info.ofs_dregion + l3_ptr_reg->__pointer[i], 1,
+    read_spdk(ptr_reg, sb_cached->sbi.ofs_dregion + l3_ptr_reg->__pointer[i], 1,
               IO_QUEUE);
     // ptr_reg =
     //     (struct vsfs_pointer_block *)(&(data_reg[l3_ptr_reg->__pointer[i]]));
@@ -1229,12 +1234,12 @@ static int vsfs_write(int fildes, const void *buf, size_t nbyte) {
     goto err_exit;
   }
 
-  if (SHOW_PROC)
-    printf("vsfs_write(): opening the disk(shm)\n");
-  if (!sb) {
-    printf("ERR: in vsfs_write(): disk(memory) are not exist!\n");
-    goto err_exit;
-  }
+  // if (SHOW_PROC)
+  //   printf("vsfs_write(): opening the disk(shm)\n");
+  // if (!sb) {
+  //   printf("ERR: in vsfs_write(): disk(memory) are not exist!\n");
+  //   goto err_exit;
+  // }
   if (SHOW_PROC)
     printf("vsfs_write(): opening the cached\n");
 
@@ -1409,12 +1414,12 @@ static int vsfs_read(int fildes, void *buf, size_t nbyte) {
     goto err_exit;
   }
 
-  if (SHOW_PROC)
-    printf("vsfs_read(): opening the disk(shm)\n");
-  if (!sb) {
-    printf("ERR: in vsfs_read(): disk(memory) are not exist!\n");
-    goto err_exit;
-  }
+  // if (SHOW_PROC)
+  //   printf("vsfs_read(): opening the disk(shm)\n");
+  // if (!sb) {
+  //   printf("ERR: in vsfs_read(): disk(memory) are not exist!\n");
+  //   goto err_exit;
+  // }
   // inode_reg = (struct vsfs_inode *)((char *)sb +
   //                                   sb->info.ofs_iregion * VSFS_BLOCK_SIZE);
   // read_spdk(inode_reg, sb_cached->sbi.ofs_iregion + (target_op->inode_nr /
@@ -1496,7 +1501,7 @@ static uint64_t vsfs_lseek(int fd, uint64_t offset, int whence) {
         total_needed_blocks = offset / VSFS_BLOCK_SIZE;
         if (offset % VSFS_BLOCK_SIZE)
           total_needed_blocks++;
-        __alloc_block(inode_reg, sb->info.ofs_dregion, target_op->inode_nr % 16,
+        __alloc_block(inode_reg, sb_cached->sbi.ofs_dregion, target_op->inode_nr % 16,
                       total_needed_blocks - target_op->file_ptr->blocks);
         target_op->file_ptr->blocks += total_needed_blocks;
         target_op->file_ptr->size += offset - target_op->file_ptr->size;

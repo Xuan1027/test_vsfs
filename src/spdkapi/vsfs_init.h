@@ -17,4 +17,6 @@ int init_vsfs(char *name);
 
 int mount_vsfs(char *name);
 
+int unmount_vsfs(char *name);
+
 #endif

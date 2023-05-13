@@ -15,7 +15,8 @@ int main(int argc, char** argv) {
 
   // char* fname = (char*)malloc(VSFS_FILENAME_LEN);
   // sprintf(fname,"test");
-  int ret = vsfs_creat("test", 1024*1024);
+  int fd = vsfs_open("test", O_RDWR);
+  int ret = vsfs_creat("iiiiii", 0);
   if(ret == -1){
     return ret;
     printf("already exist\n");
@@ -29,7 +30,6 @@ int main(int argc, char** argv) {
   //     return -1;
   //   }
   // }
-  int fd = vsfs_open("test", O_RDWR);
 
   // printf("fd = %d\n",fd);
   // vsfs_print_block_nbr(fd);

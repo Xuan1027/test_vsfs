@@ -11,6 +11,7 @@ int stat_clean(stat_t* st) {
   free(st->home);
   return 0;
 }
+
 int env_init(stat_t* st) {
   init_spdk();
 
@@ -43,6 +44,14 @@ int call_init_spdk(char* name) {
 int call_mount_spdk(char* name) {
   init_spdk();
   mount_vsfs(name);
+  exit_spdk();
+
+  return 0;
+}
+
+int call_unmount_spdk(char* name) {
+  init_spdk();
+  unmount_vsfs(name);
   exit_spdk();
 
   return 0;
@@ -93,18 +102,18 @@ void print_ufs_info() {
             IO_QUEUE);
 
   int i;
-  printf("/\n");
-  for (i = 0; i < root_inode->entry; i++) {
-    if (i % 16 == 0) {
-      read_spdk(root_dir_info,
-                sb_cached->sbi.ofs_dregion + root_inode->l1[i / 16], 1,
-                IO_QUEUE);
-    }
+  // printf("/\n");
+  // for (i = 0; i < root_inode->entry; i++) {
+  //   if (i % 16 == 0) {
+  //     read_spdk(root_dir_info,
+  //               sb_cached->sbi.ofs_dregion + root_inode->l1[i / 16], 1,
+  //               IO_QUEUE);
+  //   }
 
-    printf("\t%s\tinode:%u\n", root_dir_info->files[i % 16].filename,
-           root_dir_info->files[i % 16].inode);
-  }
-  printf("nr_inode/64=%ld\n", VSFS_NR_INODES / 64);
+  //   printf("\t%s\tinode:%u\n", root_dir_info->files[i % 16].filename,
+  //          root_dir_info->files[i % 16].inode);
+  // }
+  // printf("nr_inode/64=%ld\n", VSFS_NR_INODES / 64);
 
   free_dma_buffer(root_inode);
   free_dma_buffer(root_dir_info);
@@ -118,27 +127,6 @@ void prompt(stat_t* st) {
 }
 
 int cmd_ls() {
-
-  printf(
-      "Superblock: (%ld)\n"
-      "\tmagic=%#x\n"
-      "\tnr_blocks=%u\n"
-      "\tnr_ibitmap_blocks=%u\n"
-      "\tnr_iregion_blocks=%u\n"
-      "\tnr_dbitmap_blocks=%u\n"
-      "\tnr_dregion_blocks=%u\n"
-      "\tofs_ibitmap=%u\n"
-      "\tofs_iregion=%u\n"
-      "\tofs_dbitmap=%u\n"
-      "\tofs_dregion=%u\n"
-      "\tnr_free_inodes=%u\n"
-      "\tnr_free_dblock=%u\n",
-      sizeof(struct superblock), sb_cached->sbi.magic, sb_cached->sbi.nr_blocks,
-      sb_cached->sbi.nr_ibitmap_blocks, sb_cached->sbi.nr_iregion_blocks,
-      sb_cached->sbi.nr_dbitmap_blocks, sb_cached->sbi.nr_dregion_blocks,
-      sb_cached->sbi.ofs_ibitmap, sb_cached->sbi.ofs_iregion,
-      sb_cached->sbi.ofs_dbitmap, sb_cached->sbi.ofs_dregion,
-      sb_cached->sbi.nr_free_inodes, sb_cached->sbi.nr_free_dblock);
 
   struct vsfs_inode* root_inode = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   struct vsfs_dir_block* root_dir_info = alloc_dma_buffer(VSFS_BLOCK_SIZE);
@@ -175,7 +163,7 @@ int cmd_create() {
 
   file_name = strtok(input, d);
   while(file_name != NULL){
-    printf("%s\n", file_name);
+    printf("creating %s\n", file_name);
     vsfs_creat(file_name,0);
     file_name = strtok(NULL, d);
   }
@@ -352,6 +340,15 @@ int main(int argc, char** argv) {
         ret = call_mount_spdk(argv[2]);
         if (ret) {
           printf("ERR: in mount_spdk\n");
+          return -1;
+        }
+        break;
+      }
+      if (!strcmp(argv[1], "unmount")) {
+        printf("%s %s\n", argv[1], argv[2]);
+        ret = call_unmount_spdk(argv[2]);
+        if (ret) {
+          printf("ERR: in unmount_spdk\n");
           return -1;
         }
         break;
