@@ -337,14 +337,14 @@ adding_entry:
   tmp_inode_reg[f_inode].blocks = htole32(block_num);
   tmp_inode_reg[f_inode].size = htole32(block_num*4096);
 
-  shm_close(tmp_sb, tmp_fd);
-  shm_close(tmp_sb_cached, tmp_fdc);
+  shm_close((void**)&tmp_sb, tmp_fd);
+  shm_close((void**)&tmp_sb_cached, tmp_fdc);
 
   return 0;
 sup_cached_err_exit:
-  shm_close(tmp_sb_cached, tmp_fdc);
+  shm_close((void**)&tmp_sb_cached, tmp_fdc);
 sb_err_exit:
-  shm_close(tmp_sb, tmp_fd);
+  shm_close((void**)&tmp_sb, tmp_fd);
   free(name);
 shm_err_exit:
   return -1;
@@ -579,9 +579,9 @@ free_fd:
 
   free(fd_table);
 free_sb_ca:
-  shm_close(sb, fd);
+  shm_close((void**)&sb, fd);
 sb_exit:
-  shm_close(op_counter, opfd);
+  shm_close((void**)&op_counter, opfd);
 
 wt_list_exit:
   return ret;
@@ -682,9 +682,9 @@ static int vsfs_close(int fildes) {
 
   if (!fd_table->head) {
     free(fd_table);
-    shm_close(sb, fd);
-    shm_close(sb_cached, fdc);
-    shm_close(op_counter, opfd);
+    shm_close((void**)&sb, fd);
+    shm_close((void**)&sb_cached, fdc);
+    shm_close((void**)&op_counter, opfd);
   }
 
   return 0;
@@ -793,10 +793,10 @@ static int vsfs_stat(char *pathname, file_stat_t *fre) {
   //     data_reg[offset].files[i-16*offset].filename);
   // }
 
-  shm_close(tmp_sb, tmp_fd);
+  shm_close((void**)&tmp_sb, tmp_fd);
   return 0;
 not_find:
-  shm_close(tmp_sb, tmp_fd);
+  shm_close((void**)&tmp_sb, tmp_fd);
   return -1;
 op_shm_err:
   fre = NULL;

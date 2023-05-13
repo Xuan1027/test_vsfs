@@ -8,7 +8,15 @@
  */
 
 /* spdk setting */
-#define NVME_ADDR "0000:01:00.0"
+#ifndef _NVME_ADDR_
+#define _NVME_ADDR_ "0000:01:00.0"
+#endif
+#ifndef _MY_SSD_BLOCK_SIZE_
+#define _MY_SSD_BLOCK_SIZE_ 4096
+#endif
+#include "../inc/vsfs.h"
+#define PER_DEV_BLOCKS VSFS_BLOCK_SIZE/_MY_SSD_BLOCK_SIZE_
+#define VSFS_INODE_PER_BLOCK (PER_DEV_BLOCKS / sizeof(struct vsfs_inode))
 #define IODEPTH 1
 #define QPAIR_COUNT 2
 typedef enum { IO_QUEUE, MG_QUEUE } queue_type;

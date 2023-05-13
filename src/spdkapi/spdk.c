@@ -151,7 +151,7 @@ void exit_spdk(void) {
 
 void get_device_info(unsigned *block_size, unsigned long *device_size) {
   if (!target.isfind) {
-    printf("Error: No namespace found");
+    printf("Error: No namespace found\n");
     return;
   }
   *block_size = spdk_nvme_ns_get_sector_size(target.ns);

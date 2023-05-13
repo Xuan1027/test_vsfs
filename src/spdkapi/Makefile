@@ -37,11 +37,11 @@ test: vsfs_init.c testcreat.c testwrite_2.c vsfsio_spdk.h $(SPDK_ROOT_DIR)/build
 	$(Q)echo "  LINK test_vsfs_init";\
 	$(CC) $(MY_CFLAGS) -g test_vsfs_init.c vsfs_init.o $(SPDK_ROOT_DIR)/build/fio/spdkapi -o test_vsfs_init -lrt
 	$(Q)echo "  LINK testcreat";\
-	$(CC) $(MY_CFLAGS) -g testcreat.c vsfs_init.o $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testcreat -lrt
+	$(CC) $(MY_CFLAGS) -g testcreat.c $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testcreat -lrt
 	$(Q)echo "  LINK testfs";\
 	$(CC) $(MY_CFLAGS) -g testfs.c $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testfs
 	$(Q)echo "  LINK testwrite_2";\
-	$(CC) $(MY_CFLAGS) -g testwrite_2.c vsfs_init.o $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testwrite_2 -lrt
+	$(CC) $(MY_CFLAGS) -g testwrite_2.c $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testwrite_2 -lrt
 	$(Q)echo "  LINK testwrite";\
-	$(CC) $(MY_CFLAGS) -g testwrite.c vsfs_init.o $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testwrite -lrt
+	$(CC) $(MY_CFLAGS) -g testwrite.c $(SPDK_ROOT_DIR)/build/fio/spdkapi -o testwrite -lrt
 
