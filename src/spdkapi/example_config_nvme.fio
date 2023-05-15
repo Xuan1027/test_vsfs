@@ -9,7 +9,7 @@ runtime=10
 
 [file1]
 size=20k
-ioengine=myfio
+ioengine=/home/xuan/vsfs/spdk/build/fio/myfio
 iodepth=1
 
 

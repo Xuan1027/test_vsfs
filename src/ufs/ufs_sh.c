@@ -1,4 +1,6 @@
 #include "ufs.h"
+struct vsfs_cached_data *sb = NULL;
+int sbf;
 
 int stat_init(stat_t* st) {
   st->cwd = "/";
@@ -10,10 +12,10 @@ int stat_clean(stat_t* st) { return 0; }
 int env_init(stat_t* st) {
   init_spdk();
 
-  if (!sb_cached) {
-    sb_cached = (struct vsfs_cached_data*)shm_oandm(
-        SHM_CACHE_NAME, O_RDWR, PROT_READ | PROT_WRITE, &fdc);
-    if (!sb_cached) {
+  if (!sb) {
+    sb = (struct vsfs_cached_data*)shm_oandm(
+        SHM_CACHE_NAME, O_RDWR, PROT_READ | PROT_WRITE, &sbf);
+    if (!sb) {
       printf("Error: open super block cached faild!\n");
     }
   }
@@ -22,7 +24,7 @@ int env_init(stat_t* st) {
 }
 
 int env_exit(stat_t* st) {
-  shm_close((void**)&sb_cached, fdc);
+  shm_close((void**)&sb, sbf);
 
   exit_spdk();
   return 0;
@@ -58,23 +60,21 @@ void prompt(stat_t* st) {
 }
 
 int cmd_ls() {
-  struct vsfs_inode* root_inode = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  struct vsfs_inode* inode_reg = sb->inode_reg;
   struct vsfs_dir_block* root_dir_info = alloc_dma_buffer(VSFS_BLOCK_SIZE);
 
-  read_spdk(root_inode, sb_cached->sbi.ofs_iregion, 1, IO_QUEUE);
-
-  for (uint32_t i = 0; i < root_inode->entry; i++) {
+  printf("%p\n", sb);
+  for (uint32_t i = 0; i < inode_reg->entry; i++) {
     if (i % 16 == 0) {
       read_spdk(root_dir_info,
-                sb_cached->sbi.ofs_dregion + root_inode->l1[i / 16], 1,
+                sb->sbi.ofs_dregion + inode_reg->l1[i], 1,
                 IO_QUEUE);
     }
 
-    printf("%s ", root_dir_info->files[i % 16].filename);
+    printf("%s ", root_dir_info->files[i].filename);
   }
   printf("\n");
 
-  free_dma_buffer(root_inode);
   free_dma_buffer(root_dir_info);
 
   return 0;
@@ -152,19 +152,20 @@ void p_sys_info() {
       "\tofs_dregion=%u\n"
       "\tnr_free_inodes=%u\n"
       "\tnr_free_dblock=%u\n",
-      sizeof(struct superblock), sb_cached->sbi.magic, sb_cached->sbi.nr_blocks,
-      sb_cached->sbi.nr_ibitmap_blocks, sb_cached->sbi.nr_iregion_blocks,
-      sb_cached->sbi.nr_dbitmap_blocks, sb_cached->sbi.nr_dregion_blocks,
-      sb_cached->sbi.ofs_ibitmap, sb_cached->sbi.ofs_iregion,
-      sb_cached->sbi.ofs_dbitmap, sb_cached->sbi.ofs_dregion,
-      sb_cached->sbi.nr_free_inodes, sb_cached->sbi.nr_free_dblock);
+      sizeof(struct superblock), sb->sbi.magic, sb->sbi.nr_blocks,
+      sb->sbi.nr_ibitmap_blocks, sb->sbi.nr_iregion_blocks,
+      sb->sbi.nr_dbitmap_blocks, sb->sbi.nr_dregion_blocks,
+      sb->sbi.ofs_ibitmap, sb->sbi.ofs_iregion,
+      sb->sbi.ofs_dbitmap, sb->sbi.ofs_dregion,
+      sb->sbi.nr_free_inodes, sb->sbi.nr_free_dblock);
 
   return;
 }
 
 void p_root_info() {
-  struct vsfs_inode* root_inode = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  read_spdk(root_inode, sb_cached->sbi.ofs_iregion, 1, IO_QUEUE);
+  struct vsfs_inode* root_inode = sb->inode_reg;
+  // read_spdk(root_inode, sb_cached->sbi.ofs_iregion, 1, IO_QUEUE);
+  
 
   printf(
       "root inode:\n"
@@ -178,7 +179,7 @@ void p_root_info() {
       root_inode->atime, root_inode->ctime, root_inode->mtime);
 
   struct vsfs_dir_block* root_dir_info = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  read_spdk(root_dir_info, sb_cached->sbi.ofs_dregion + root_inode->l1[0], 1,
+  read_spdk(root_dir_info, sb->sbi.ofs_dregion + root_inode->l1[0], 1,
             IO_QUEUE);
 
   int i;
@@ -186,7 +187,7 @@ void p_root_info() {
   for (i = 0; i < root_inode->entry; i++) {
     if (i % 16 == 0) {
       read_spdk(root_dir_info,
-                sb_cached->sbi.ofs_dregion + root_inode->l1[i / 16], 1,
+                sb->sbi.ofs_dregion + root_inode->l1[i / 16], 1,
                 IO_QUEUE);
     }
 
@@ -196,7 +197,6 @@ void p_root_info() {
   printf("nr_inode/64=%ld\n", VSFS_NR_INODES / 64);
 
   free_dma_buffer(root_inode);
-  free_dma_buffer(root_dir_info);
   return;
 }
 

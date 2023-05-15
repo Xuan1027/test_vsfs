@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
         op_ftable[i].lock);
   }
 
-  shm_close(op_counter, opfd);
+  shm_close((void**)&op_counter, opfd);
 
   return 0;
 }

@@ -94,7 +94,6 @@ int main(int argc, char **argv) {
     //   default:
     //   printf("\rread progress = %.2f%%",(float)i*100/limit);
     // }
-    printf("%s\n", src);
     for (int j = 0; j < 4096; j++) {
       if (src[j] == 'a')
         count++;

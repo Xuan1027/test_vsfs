@@ -29,9 +29,11 @@ SPDK_LIB_LIST = $(SOCK_MODULES_LIST) nvme vmd
 
 include $(SPDK_ROOT_DIR)/mk/spdk.fio.mk
 
-example: example.c $(SPDK_ROOT_DIR)/build/fio/spdkapi vsfsio_spdk.h
+.PHONY: example test
+
+example:
 	$(CC) example.c $(SPDK_ROOT_DIR)/build/fio/spdkapi -o example
-test: vsfs_init.c testcreat.c testwrite_2.c vsfsio_spdk.h $(SPDK_ROOT_DIR)/build/fio/spdkapi testfs.c
+test:
 	$(Q)echo "  CC vsfs_init.c";\
 	$(CC) $(MY_CFLAGS) -c vsfs_init.c -o vsfs_init.o
 	$(Q)echo "  LINK test_vsfs_init";\
