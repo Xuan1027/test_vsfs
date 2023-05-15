@@ -1,5 +1,5 @@
-# vsfs
-very simple file system
+# ufs
+unix file system
 |         | superblock | inode bitmap | inode region | data bitmap | data region |
 | ------- | ---------- | ------------ | ------------ | ----------- | ----------- |
 | LBA     | 0          | 1            | 2~2049       | 2050+m      | 2050+m+n    | 
