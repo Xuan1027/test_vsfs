@@ -2,12 +2,14 @@
 filename=test
 rw=randrw
 bs=4K
-direct=0
+direct=1
 numjobs=1
 time_based
 runtime=10
 
 [file1]
 size=20k
-ioengine=/home/xuan/vsfs/spdk/build/fio/myfio
+ioengine=myfio
 iodepth=1
+
+

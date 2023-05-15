@@ -11,9 +11,9 @@
 int main(int argc, char *argv[]) {
   init_spdk();
 
-  printf("_MY_SSD_BLOCK_SIZE_=%d\n", _MY_SSD_BLOCK_SIZE_);
-  printf("VSFS_BLOCK_SIZE=%d\n", VSFS_BLOCK_SIZE);
-  printf("PER_DEV_BLOCKS=%d\n", PER_DEV_BLOCKS);
+  // printf("_MY_SSD_BLOCK_SIZE_=%d\n", _MY_SSD_BLOCK_SIZE_);
+  // printf("VSFS_BLOCK_SIZE=%d\n", VSFS_BLOCK_SIZE);
+  // printf("PER_DEV_BLOCKS=%d\n", PER_DEV_BLOCKS);
 
   struct superblock *sb = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   read_spdk(sb, 0, 1, IO_QUEUE);

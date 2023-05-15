@@ -29,7 +29,7 @@ clean :
 	$(Q)rm -f /dev/shm/optab /dev/shm/vsfs_cached;\
 	$(CLEAN_C)
 
-ufs: ufs_bash.o vsfs_init.o
+ufs: ufs_sh.o vsfs_init.o
 	$(Q)echo "  LINK $(notdir $@)";\
 	$(CC) $^ $(SPDK_API) $(SYS_LIBS) -o $@
 

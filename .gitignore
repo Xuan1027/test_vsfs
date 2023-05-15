@@ -11,6 +11,5 @@ src/spdkapi/*
 !/src/spdkapi/Makefile
 /src/ufs/ufs
 /src/ufs/test*
-!/src/ufs/test*.c
 *.d
 *.o

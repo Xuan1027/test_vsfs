@@ -10,7 +10,6 @@
 #include "vsfsio_spdk.h"
 
 typedef struct status{
-  char* home;
   char* cwd;
 }stat_t;
 

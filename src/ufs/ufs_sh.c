@@ -1,16 +1,11 @@
 #include "ufs.h"
 
 int stat_init(stat_t* st) {
-  st->cwd = getcwd(NULL, 0);
-  st->home = getcwd(NULL, 0);
+  st->cwd = "/";
   return 0;
 }
 
-int stat_clean(stat_t* st) {
-  free(st->cwd);
-  free(st->home);
-  return 0;
-}
+int stat_clean(stat_t* st) { return 0; }
 
 int env_init(stat_t* st) {
   init_spdk();
@@ -57,77 +52,12 @@ int call_unmount_spdk(char* name) {
   return 0;
 }
 
-void print_ufs_info() {
-  printf("_MY_SSD_BLOCK_SIZE_=%d\n", _MY_SSD_BLOCK_SIZE_);
-  printf("VSFS_BLOCK_SIZE=%d\n", VSFS_BLOCK_SIZE);
-  printf("PER_DEV_BLOCKS=%d\n", PER_DEV_BLOCKS);
-
-  printf(
-      "Superblock: (%ld)\n"
-      "\tmagic=%#x\n"
-      "\tnr_blocks=%u\n"
-      "\tnr_ibitmap_blocks=%u\n"
-      "\tnr_iregion_blocks=%u\n"
-      "\tnr_dbitmap_blocks=%u\n"
-      "\tnr_dregion_blocks=%u\n"
-      "\tofs_ibitmap=%u\n"
-      "\tofs_iregion=%u\n"
-      "\tofs_dbitmap=%u\n"
-      "\tofs_dregion=%u\n"
-      "\tnr_free_inodes=%u\n"
-      "\tnr_free_dblock=%u\n",
-      sizeof(struct superblock), sb_cached->sbi.magic, sb_cached->sbi.nr_blocks,
-      sb_cached->sbi.nr_ibitmap_blocks, sb_cached->sbi.nr_iregion_blocks,
-      sb_cached->sbi.nr_dbitmap_blocks, sb_cached->sbi.nr_dregion_blocks,
-      sb_cached->sbi.ofs_ibitmap, sb_cached->sbi.ofs_iregion,
-      sb_cached->sbi.ofs_dbitmap, sb_cached->sbi.ofs_dregion,
-      sb_cached->sbi.nr_free_inodes, sb_cached->sbi.nr_free_dblock);
-
-  struct vsfs_inode* root_inode = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  read_spdk(root_inode, sb_cached->sbi.ofs_iregion, 1, IO_QUEUE);
-
-  printf(
-      "root inode:\n"
-      "\tmode: %x\n"
-      "\tblocks: %u\n"
-      "\tentry: %u\n"
-      "\tatime: %lu\n"
-      "\tctime: %lu\n"
-      "\tmtime: %lu\n",
-      root_inode->mode, root_inode->blocks, root_inode->entry,
-      root_inode->atime, root_inode->ctime, root_inode->mtime);
-
-  struct vsfs_dir_block* root_dir_info = alloc_dma_buffer(VSFS_BLOCK_SIZE);
-  read_spdk(root_dir_info, sb_cached->sbi.ofs_dregion + root_inode->l1[0], 1,
-            IO_QUEUE);
-
-  int i;
-  // printf("/\n");
-  // for (i = 0; i < root_inode->entry; i++) {
-  //   if (i % 16 == 0) {
-  //     read_spdk(root_dir_info,
-  //               sb_cached->sbi.ofs_dregion + root_inode->l1[i / 16], 1,
-  //               IO_QUEUE);
-  //   }
-
-  //   printf("\t%s\tinode:%u\n", root_dir_info->files[i % 16].filename,
-  //          root_dir_info->files[i % 16].inode);
-  // }
-  // printf("nr_inode/64=%ld\n", VSFS_NR_INODES / 64);
-
-  free_dma_buffer(root_inode);
-  free_dma_buffer(root_dir_info);
-
-  return;
-}
-
 void prompt(stat_t* st) {
   printf("UFS@~%s >", st->cwd);
   return;
 }
 
 int cmd_ls() {
-
   struct vsfs_inode* root_inode = alloc_dma_buffer(VSFS_BLOCK_SIZE);
   struct vsfs_dir_block* root_dir_info = alloc_dma_buffer(VSFS_BLOCK_SIZE);
 
@@ -156,15 +86,15 @@ int cmd_create() {
   const char* d = " ";
   ret = scanf("%[^\n]", input);
   getchar();
-  if(!ret){
+  if (!ret) {
     handle_error("create: scanf");
     return -1;
   }
 
   file_name = strtok(input, d);
-  while(file_name != NULL){
+  while (file_name != NULL) {
     printf("creating %s\n", file_name);
-    vsfs_creat(file_name,0);
+    vsfs_creat(file_name, 0);
     file_name = strtok(NULL, d);
   }
 
@@ -184,7 +114,7 @@ int cmd_write() { return 0; }
 int cmd_help() {
   printf(
       "Command:\n"
-      "creat \t<file> \tcreate <file> inside UFS\n"
+      "create\t<file> \tcreate <file> inside UFS\n"
       "help         \tprint this helpful page\n"
       "ls           \tlist all the containt under cwd\n"
       "pwd          \tprint the working directory\n"
@@ -193,6 +123,95 @@ int cmd_help() {
       "rm    \t<file> \tremove the <file> from UFS\n"
       "stat  \t<file> \tlist the info about <file>\n"
       "write \t<file> \twrite data into <file>\n");
+  return 0;
+}
+
+void print_ufs_info() {
+  printf("\tversion: v1.0.0\n");
+  printf("\tcreated by xuan, uzuki\n");
+  cmd_help();
+  return;
+}
+
+void p_sys_info() {
+  printf("_MY_SSD_BLOCK_SIZE_=%d\n", _MY_SSD_BLOCK_SIZE_);
+  printf("VSFS_BLOCK_SIZE=%d\n", VSFS_BLOCK_SIZE);
+  printf("PER_DEV_BLOCKS=%d\n", PER_DEV_BLOCKS);
+
+  printf(
+      "Superblock: (%ld)\n"
+      "\tmagic=%#x\n"
+      "\tnr_blocks=%u\n"
+      "\tnr_ibitmap_blocks=%u\n"
+      "\tnr_iregion_blocks=%u\n"
+      "\tnr_dbitmap_blocks=%u\n"
+      "\tnr_dregion_blocks=%u\n"
+      "\tofs_ibitmap=%u\n"
+      "\tofs_iregion=%u\n"
+      "\tofs_dbitmap=%u\n"
+      "\tofs_dregion=%u\n"
+      "\tnr_free_inodes=%u\n"
+      "\tnr_free_dblock=%u\n",
+      sizeof(struct superblock), sb_cached->sbi.magic, sb_cached->sbi.nr_blocks,
+      sb_cached->sbi.nr_ibitmap_blocks, sb_cached->sbi.nr_iregion_blocks,
+      sb_cached->sbi.nr_dbitmap_blocks, sb_cached->sbi.nr_dregion_blocks,
+      sb_cached->sbi.ofs_ibitmap, sb_cached->sbi.ofs_iregion,
+      sb_cached->sbi.ofs_dbitmap, sb_cached->sbi.ofs_dregion,
+      sb_cached->sbi.nr_free_inodes, sb_cached->sbi.nr_free_dblock);
+
+  return;
+}
+
+void p_root_info() {
+  struct vsfs_inode* root_inode = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  read_spdk(root_inode, sb_cached->sbi.ofs_iregion, 1, IO_QUEUE);
+
+  printf(
+      "root inode:\n"
+      "\tmode: %x\n"
+      "\tblocks: %u\n"
+      "\tentry: %u\n"
+      "\tatime: %lu\n"
+      "\tctime: %lu\n"
+      "\tmtime: %lu\n",
+      root_inode->mode, root_inode->blocks, root_inode->entry,
+      root_inode->atime, root_inode->ctime, root_inode->mtime);
+
+  struct vsfs_dir_block* root_dir_info = alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  read_spdk(root_dir_info, sb_cached->sbi.ofs_dregion + root_inode->l1[0], 1,
+            IO_QUEUE);
+
+  int i;
+  printf("/\n");
+  for (i = 0; i < root_inode->entry; i++) {
+    if (i % 16 == 0) {
+      read_spdk(root_dir_info,
+                sb_cached->sbi.ofs_dregion + root_inode->l1[i / 16], 1,
+                IO_QUEUE);
+    }
+
+    printf("\t%s\tinode:%u\n", root_dir_info->files[i % 16].filename,
+           root_dir_info->files[i % 16].inode);
+  }
+  printf("nr_inode/64=%ld\n", VSFS_NR_INODES / 64);
+
+  free_dma_buffer(root_inode);
+  free_dma_buffer(root_dir_info);
+  return;
+}
+
+int cmd_print() {
+  char* cmd = (char*)malloc(10 * sizeof(char));
+  if(!scanf("%s", cmd)){
+    printf("Error: cmd_print!\n");
+    return -1;
+  }
+  if(!strcmp(cmd,"sys")){
+    p_sys_info();
+  }
+  if(!strcmp(cmd,"root")){
+    p_root_info();
+  }
   return 0;
 }
 
@@ -215,7 +234,7 @@ void start_ufs() {
   print_ufs_info();
 
   char* cmd = (char*)malloc(10 * sizeof(char));
-  char *input = (char*)malloc(256 * sizeof(char));
+  char* input = (char*)malloc(256 * sizeof(char));
 
   while (1) {
     prompt(st);
@@ -253,6 +272,12 @@ void start_ufs() {
         if (!strcmp(cmd, "pwd")) {
           if (cmd_pwd(st)) {
             handle_error("cmd_pwd");
+            goto clean_up;
+          }
+          break;
+        } else if (!strcmp(cmd, "p")) {
+          if (cmd_print()) {
+            handle_error("cmd_print");
             goto clean_up;
           }
           break;
@@ -326,11 +351,11 @@ int main(int argc, char** argv) {
       break;
     // try to do something to ufs
     case (3):
-      if (!strcmp(argv[1], "init")) {
+      if (!strcmp(argv[1], "mkfs")) {
         printf("%s %s\n", argv[1], argv[2]);
         ret = call_init_spdk(argv[2]);
         if (ret) {
-          printf("ERR: in init_spdk\n");
+          printf("ERR: in mkfs_spdk\n");
           return -1;
         }
         break;

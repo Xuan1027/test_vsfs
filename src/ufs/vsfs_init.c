@@ -181,7 +181,7 @@ end:
 }
 
 int init_vsfs(char *name) {
-  int ret;
+  int ret = -1;
   unsigned block_size;
   unsigned long device_size;
   unsigned long lba_cnt = 0;
