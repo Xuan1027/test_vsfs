@@ -1,4 +1,4 @@
-# vsfs
+# ufs
 very simple file system
 |         | superblock | inode bitmap | inode region | data bitmap | data region |
 | ------- | ---------- | ------------ | ------------ | ----------- | ----------- |
