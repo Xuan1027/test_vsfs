@@ -21,7 +21,7 @@ static int vsfs_init(struct thread_data *td)
   printf("------------------mounting   vsfs-------------------\n");
   mount_vsfs("vsfs");
   printf("--------------creating file in vsfs-----------------\n");
-  vsfs_creat("test", 1024*1024*8); // 512KB
+  vsfs_creat("test", 1024*1024); // 512KB
   printf("-----------------starting fio-----------------------\n");
   return 0;
 }

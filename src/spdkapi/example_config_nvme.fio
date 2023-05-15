@@ -1,15 +1,14 @@
 [global]
 filename=test
-rw=randrw
 bs=4K
 direct=1
 numjobs=1
 time_based
-runtime=10
-
-[file1]
-size=20k
-ioengine=/home/xuan/vsfs/spdk/build/fio/myfio
+runtime=30
+ioengine=/home/hoshinomori/vsfs/spdk/build/fio/myfio
 iodepth=1
 
+[file1]
+rw=read
+size=100k
 

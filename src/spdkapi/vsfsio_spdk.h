@@ -1604,10 +1604,10 @@ static int vsfs_get_inode_info(file_t *file, uint16_t inode_num) {
   }
 
 fini:
-  // if (SHOW_PROC) {
+  if (SHOW_PROC) {
     for (uint32_t i = 0; i < file->blocks; i++) printf("%u ", file->block[i]);
     printf("\n");
-  // }
+  }
 
   return 0;
 }
