@@ -249,8 +249,8 @@ static int vsfs_creat(const char *file_name, uint32_t block_num) {
   uint32_t f_inode, f_dblock, d_entry;
   // struct vsfs_cached_data *tmp_sb_cached;
   short ret_sb_flag = 0;
-  if (tmp_base_ptr == NULL)
-    init_base_ptr();
+  // if (tmp_base_ptr == NULL)
+  //   init_base_ptr();
 
   char *name;
 
@@ -429,8 +429,8 @@ static int vsfs_open(char *pathname, int flags) {
    * need to update the file's inode and the root's inode
    * list the path of the dir and prepare to modify the a,c,mtime
    */
-  if (tmp_base_ptr == NULL)
-    init_base_ptr();
+  // if (tmp_base_ptr == NULL)
+  //   init_base_ptr();
 
   int ret = -1;
   op_ftable_t *op_ftable;

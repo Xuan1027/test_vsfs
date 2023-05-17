@@ -1,7 +1,7 @@
 #include "../inc/vsfs.h"
 #include "../inc/vsfs_bitmap.h"
 #include "../inc/vsfs_stdinc.h"
-#include "vsfsio_spdk.h"
+#include "../inc/vsfsio_spdk.h"
 #include "spdk.h"
 #include <stdio.h>
 #include <stdlib.h>

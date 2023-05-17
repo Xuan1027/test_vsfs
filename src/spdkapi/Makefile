@@ -9,19 +9,19 @@ include $(SPDK_ROOT_DIR)/mk/spdk.common.mk
 include $(SPDK_ROOT_DIR)/mk/spdk.modules.mk
 
 # share library
-FIO_PLUGIN := myfio
+# FIO_PLUGIN := myfio
 
-C_SRCS = spdk.c myfio.c vsfs_init.c
+# C_SRCS = spdk.c myfio.c vsfs_init.c
 
-# FIO_PLUGIN := spdkapi
+FIO_PLUGIN := spdkapi
 
-# C_SRCS = spdk.c
+C_SRCS = spdk.c
 
 ###############
 #  attention  #
 ###############
 # modify the NVME_ADDR and MY_SSD_BLOCK_SIZE here
-MY_CFLAGS := -D_NVME_ADDR_=\"0000:01:00.0\" -D_MY_SSD_BLOCK_SIZE_=4096
+MY_CFLAGS := -D_NVME_ADDR_=\"0000:0b:00.0\" -D_MY_SSD_BLOCK_SIZE_=512
 
 CFLAGS += $(MY_CFLAGS)
 

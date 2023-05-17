@@ -309,7 +309,8 @@ static int make_shm_cached(char *name, char *ptr) {
 
   memcpy(cached_sb, sb, sizeof(struct vsfs_sb_info));
   memcpy(cached_ibitmap, ibitmap, sb->info.nr_ibitmap_blocks * VSFS_BLOCK_SIZE);
-  memcpy(cached_iregion, inode_reg, sb->info.nr_iregion_blocks * VSFS_BLOCK_SIZE);
+  memcpy(cached_iregion, inode_reg,
+         sb->info.nr_iregion_blocks * VSFS_BLOCK_SIZE);
   memcpy(cached_dbitmap, dbitmap, sb->info.nr_dbitmap_blocks * VSFS_BLOCK_SIZE);
   munmap(cptr, sizeof(struct vsfs_sb_info) + total_size);
 free_str:
@@ -322,35 +323,81 @@ free_dma:
 }
 
 static int write_sb_cached_to_SSD(char *name) {
-  int fdc;
+  int fdc, ret = 0;
+  char *ibitmap = NULL, *dbitmap = NULL;
+  struct vsfs_inode *inode_reg = NULL;
 
+  int s_len = strlen(name);
+  char *cached = malloc(s_len + 8);
+  if (!cached) {
+    handle_error("malloc():");
+    goto free_dma;
+  }
+  memcpy(cached, name, s_len);
+  strncpy(cached + s_len, "_cached", 8);
+
+  printf("%s\n", cached);
   struct vsfs_cached_data *sb_cached = (struct vsfs_cached_data *)shm_oandm(
-      name, O_RDWR, PROT_READ | PROT_WRITE, &fdc);
+      cached, O_RDWR, PROT_READ | PROT_WRITE, &fdc);
   if (!sb_cached) {
     printf("Error: open super block cached faild!\n");
   }
 
-  uint32_t bitmap_total_size =
-      (sb_cached->sbi.nr_ibitmap_blocks + sb_cached->sbi.nr_dbitmap_blocks) *
-      VSFS_BLOCK_SIZE;
+  ibitmap =
+      alloc_dma_buffer(VSFS_BLOCK_SIZE * sb_cached->sbi.nr_ibitmap_blocks);
+  dbitmap =
+      alloc_dma_buffer(VSFS_BLOCK_SIZE * sb_cached->sbi.nr_dbitmap_blocks);
+  inode_reg =
+      alloc_dma_buffer(VSFS_BLOCK_SIZE * sb_cached->sbi.nr_iregion_blocks);
+  if (!ibitmap || !dbitmap || !inode_reg)
+    goto free_dma;
 
-  uint32_t sb_cached_total_blocks =
-      sb_cached->sbi.nr_ibitmap_blocks + sb_cached->sbi.nr_dbitmap_blocks + 1;
+  struct vsfs_sb_info *cached_sb = (struct vsfs_sb_info *)sb_cached;
+  char *cached_ibitmap = (char *)sb_cached + sizeof(struct vsfs_sb_info);
+  char *cached_iregion = (char *)sb_cached + sizeof(struct vsfs_sb_info) +
+                         (sb_cached->sbi.nr_ibitmap_blocks * VSFS_BLOCK_SIZE);
+  char *cached_dbitmap = (char *)sb_cached + sizeof(struct vsfs_sb_info) +
+                         (sb_cached->sbi.nr_ibitmap_blocks * VSFS_BLOCK_SIZE) +
+                         (sb_cached->sbi.nr_iregion_blocks * VSFS_BLOCK_SIZE);
 
-  char *ptr = alloc_dma_buffer(sb_cached_total_blocks * VSFS_BLOCK_SIZE);
+  memcpy(sb_cached, cached_sb, sizeof(struct vsfs_sb_info));
+  memcpy(ibitmap, cached_ibitmap,
+         sb_cached->sbi.nr_ibitmap_blocks * VSFS_BLOCK_SIZE);
+  memcpy(inode_reg, cached_iregion,
+         sb_cached->sbi.nr_iregion_blocks * VSFS_BLOCK_SIZE);
+  memcpy(dbitmap, cached_dbitmap,
+         sb_cached->sbi.nr_dbitmap_blocks * VSFS_BLOCK_SIZE);
 
-  memcpy(ptr, sb_cached, sizeof(struct vsfs_sb_info));
+  ret = write_spdk(ibitmap, sb_cached->sbi.ofs_ibitmap,
+                   sb_cached->sbi.nr_ibitmap_blocks, IO_QUEUE);
+  if (ret != 0) {
+    handle_error("read_spdk():");
+    goto free_dma;
+  }
+  ret = write_spdk(dbitmap, sb_cached->sbi.ofs_dbitmap,
+                   sb_cached->sbi.nr_dbitmap_blocks, IO_QUEUE);
+  if (ret != 0) {
+    handle_error("read_spdk():");
+    goto free_dma;
+  }
 
-  memset(ptr + sizeof(struct vsfs_sb_info), '\0',
-         VSFS_BLOCK_SIZE - sizeof(struct vsfs_sb_info));
-  memcpy(ptr + VSFS_BLOCK_SIZE, sb_cached + sizeof(struct vsfs_sb_info),
-         bitmap_total_size);
+  ret = write_spdk(inode_reg, sb_cached->sbi.ofs_iregion,
+                   sb_cached->sbi.nr_iregion_blocks, IO_QUEUE);
+  if (ret != 0) {
+    handle_error("read_spdk():");
+    goto free_dma;
+  }
 
-  write_spdk(ptr, 0, sb_cached_total_blocks, IO_QUEUE);
-
+  free(cached);
   shm_close((void **)&sb_cached, fdc);
 
-  return 0;
+free_dma:
+  // free_dma_buffer(ptr);
+  free_dma_buffer(ibitmap);
+  free_dma_buffer(dbitmap);
+  free_dma_buffer(inode_reg);
+
+  return ret;
 }
 
 static int creat_open_file_table(void) {
@@ -420,7 +467,7 @@ free:
 int unmount_vsfs(char *name) {
   int ret = -1;
 
-  ret = write_sb_cached_to_SSD(strcat(name, "_cached"));
+  ret = write_sb_cached_to_SSD(name);
   if (ret != 0) {
     goto free;
   }

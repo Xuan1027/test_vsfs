@@ -1,5 +1,5 @@
 #include "ufs.h"
-struct vsfs_cached_data *sb = NULL;
+struct vsfs_cached_data* sb = NULL;
 int sbf;
 
 int stat_init(stat_t* st) {
@@ -13,18 +13,21 @@ int env_init(stat_t* st) {
   init_spdk();
 
   if (!sb) {
-    sb = (struct vsfs_cached_data*)shm_oandm(
-        SHM_CACHE_NAME, O_RDWR, PROT_READ | PROT_WRITE, &sbf);
+    sb = (struct vsfs_cached_data*)shm_oandm(SHM_CACHE_NAME, O_RDWR,
+                                             PROT_READ | PROT_WRITE, &sbf);
     if (!sb) {
       printf("Error: open super block cached faild!\n");
     }
   }
+  init_base_ptr();
 
   return 0;
 }
 
 int env_exit(stat_t* st) {
   shm_close((void**)&sb, sbf);
+
+  free_dma_buffer(tmp_base_ptr);
 
   exit_spdk();
   return 0;
@@ -63,11 +66,9 @@ int cmd_ls() {
   struct vsfs_inode* inode_reg = sb->inode_reg;
   struct vsfs_dir_block* root_dir_info = alloc_dma_buffer(VSFS_BLOCK_SIZE);
 
-  printf("%p\n", sb);
   for (uint32_t i = 0; i < inode_reg->entry; i++) {
     if (i % 16 == 0) {
-      read_spdk(root_dir_info,
-                sb->sbi.ofs_dregion + inode_reg->l1[i], 1,
+      read_spdk(root_dir_info, sb->sbi.ofs_dregion + inode_reg->l1[i], 1,
                 IO_QUEUE);
     }
 
@@ -109,8 +110,53 @@ int cmd_pwd(stat_t* st) {
 
 int cmd_stat() { return 0; }
 int cmd_rm() { return 0; }
-int cmd_read() { return 0; }
-int cmd_write() { return 0; }
+int cmd_read() {
+  int fd, ret;
+  char* src = (char*)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  char* input = (char*)malloc(256 * sizeof(char));
+  char* data = (char*)malloc(VSFS_BLOCK_SIZE);
+  ret = scanf("%s", input);
+
+  fd = vsfs_open(input, O_RDWR);
+  if (fd == -1) {
+    handle_error("vsfs_open():");
+    goto free;
+  }
+  printf("reading:\n");
+  vsfs_lseek(fd, 0, SEEK_SET);
+  while (vsfs_read(fd, src, 4096) != EOF) {
+    printf("%s", src);
+  }
+  printf("\n");
+  vsfs_close(fd);
+free:
+  free(input);
+  free(data);
+  // free_dma_buffer(src);
+  return 0;
+}
+
+int cmd_write() {
+  int fd, ret;
+  char* src = (char*)alloc_dma_buffer(VSFS_BLOCK_SIZE);
+  char* input = (char*)malloc(1000 * sizeof(char));
+  ret = scanf("%s", input);
+
+  fd = vsfs_open(input, O_RDWR);
+  if (fd == -1) {
+    handle_error("vsfs_open():");
+    goto free;
+  }
+  printf("writing:\n");
+  ret = scanf("%s", src);
+  printf("%s\n", src);
+  vsfs_write(fd, src, VSFS_BLOCK_SIZE);
+  vsfs_close(fd);
+free:
+  free(input);
+  // free_dma_buffer(src);
+  return 0;
+}
 int cmd_help() {
   printf(
       "Command:\n"
@@ -154,9 +200,8 @@ void p_sys_info() {
       "\tnr_free_dblock=%u\n",
       sizeof(struct superblock), sb->sbi.magic, sb->sbi.nr_blocks,
       sb->sbi.nr_ibitmap_blocks, sb->sbi.nr_iregion_blocks,
-      sb->sbi.nr_dbitmap_blocks, sb->sbi.nr_dregion_blocks,
-      sb->sbi.ofs_ibitmap, sb->sbi.ofs_iregion,
-      sb->sbi.ofs_dbitmap, sb->sbi.ofs_dregion,
+      sb->sbi.nr_dbitmap_blocks, sb->sbi.nr_dregion_blocks, sb->sbi.ofs_ibitmap,
+      sb->sbi.ofs_iregion, sb->sbi.ofs_dbitmap, sb->sbi.ofs_dregion,
       sb->sbi.nr_free_inodes, sb->sbi.nr_free_dblock);
 
   return;
@@ -165,7 +210,6 @@ void p_sys_info() {
 void p_root_info() {
   struct vsfs_inode* root_inode = sb->inode_reg;
   // read_spdk(root_inode, sb_cached->sbi.ofs_iregion, 1, IO_QUEUE);
-  
 
   printf(
       "root inode:\n"
@@ -186,8 +230,7 @@ void p_root_info() {
   printf("/\n");
   for (i = 0; i < root_inode->entry; i++) {
     if (i % 16 == 0) {
-      read_spdk(root_dir_info,
-                sb->sbi.ofs_dregion + root_inode->l1[i / 16], 1,
+      read_spdk(root_dir_info, sb->sbi.ofs_dregion + root_inode->l1[i / 16], 1,
                 IO_QUEUE);
     }
 
@@ -202,14 +245,14 @@ void p_root_info() {
 
 int cmd_print() {
   char* cmd = (char*)malloc(10 * sizeof(char));
-  if(!scanf("%s", cmd)){
+  if (!scanf("%s", cmd)) {
     printf("Error: cmd_print!\n");
     return -1;
   }
-  if(!strcmp(cmd,"sys")){
+  if (!strcmp(cmd, "sys")) {
     p_sys_info();
   }
-  if(!strcmp(cmd,"root")){
+  if (!strcmp(cmd, "root")) {
     p_root_info();
   }
   return 0;

@@ -23,13 +23,13 @@ MY_CFLAGS := -D_NVME_ADDR_=\"0000:0b:00.0\" -D_MY_SSD_BLOCK_SIZE_=512
 
 .PHONY: clean
 
-all: ufs test
+all: ufs
 
 clean :
 	$(Q)rm -f /dev/shm/optab /dev/shm/vsfs_cached;\
 	$(CLEAN_C)
 
-ufs: ufs_sh.o vsfs_init.o
+ufs: ufs_sh.o vsfs_init.o $(SPDK_API)
 	$(Q)echo "  LINK $(notdir $@)";\
 	$(CC) $^ $(SPDK_API) $(SYS_LIBS) -o $@
 
